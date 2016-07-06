@@ -1,0 +1,24 @@
+{
+	"FileVersion" : 3,
+	
+	"FriendlyName" : "Graph Node Imager",
+	"Description" : "Plugin allowing exporting of rendered images of editor graph nodes.",
+	"Version" : 1,
+	"VersionName" : "1.0",
+	"CreatedBy" : "Kantan Dev",
+	"CreatedByURL" : "",
+	"MarketplaceURL" : "",
+	"SupportURL" : "mailto:kantandev@gmail.com",
+	"EngineVersion" : "4.12.0",
+	"Category" : "Kantan Dev",
+	"CanContainContent" : false,
+	"EnabledByDefault" : false,
+	
+	"Modules" :
+	[
+	{
+		"Name": "GraphNodeImager",
+		"Type": "Editor"
+	}
+	]
+}
