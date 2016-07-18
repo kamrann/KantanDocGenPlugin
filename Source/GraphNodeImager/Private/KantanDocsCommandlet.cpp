@@ -67,7 +67,7 @@ int32 UKantanDocsCommandlet::Main(FString const& Params)
 
 	KantanDocsCommandletUtils::CommandOptions = KantanDocsCommandletUtils::CommandletOptions(Switches);
 	KantanDocsCommandletUtils::CommandletOptions const& CommandOptions = KantanDocsCommandletUtils::CommandOptions;
-
+#if 0
 	{
 		FNodeDocsGenerator Gen;
 		if(Gen.Init("Temp"))
@@ -82,7 +82,7 @@ int32 UKantanDocsCommandlet::Main(FString const& Params)
 			}
 		}
 	}
-
+#endif
 	return 0;
 }
 

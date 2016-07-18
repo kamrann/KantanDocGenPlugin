@@ -15,9 +15,11 @@
 #include "BlueprintFunctionNodeSpawner.h"
 #include "BlueprintBoundNodeSpawner.h"
 #include "BlueprintComponentNodeSpawner.h"
+#include "BlueprintEventNodeSpawner.h"
 #include "HighResScreenshot.h"
 #include "XmlFile.h"
-#include "WidgetRenderer.h"
+#include "Slate/WidgetRenderer.h"
+#include "ThreadingHelpers.h"
 
 
 FNodeDocsGenerator::~FNodeDocsGenerator()
@@ -25,10 +27,10 @@ FNodeDocsGenerator::~FNodeDocsGenerator()
 	CleanUp();
 }
 
-bool FNodeDocsGenerator::Init(FString const& DocsTitle)
+bool FNodeDocsGenerator::GT_Init(FString const& DocsTitle, FString const& InOutputDir, UClass* BlueprintContextClass)
 {
 	DummyBP = CastChecked< UBlueprint >(FKismetEditorUtilities::CreateBlueprint(
-		AActor::StaticClass(),	// @TODO: hacky, this is the class the bp derives from
+		BlueprintContextClass,
 		::GetTransientPackage(),
 		NAME_None,
 		EBlueprintType::BPTYPE_Normal,
@@ -41,10 +43,10 @@ bool FNodeDocsGenerator::Init(FString const& DocsTitle)
 		return false;
 	}
 
-	//			auto Graph = NewObject< UEdGraph >();
-	//			Graph->Schema = UEdGraphSchema_K2::StaticClass();
 	Graph = FBlueprintEditorUtils::CreateNewGraph(DummyBP, TEXT("TempoGraph"), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
-	//			Graph->GetSchema()->CreateDefaultNodesForGraph(*Graph);
+
+	DummyBP->AddToRoot();
+	Graph->AddToRoot();
 
 	GraphPanel = SNew(SGraphPanel)
 		.GraphObj(Graph)
@@ -52,122 +54,52 @@ bool FNodeDocsGenerator::Init(FString const& DocsTitle)
 	// We want full detail for rendering, passing a super-high zoom value will guarantee the highest LOD.
 	GraphPanel->RestoreViewSettings(FVector2D(0, 0), 10.0f);
 
-/*	HostStyle = FCoreStyle::Get().GetWidgetStyle<FWindowStyle>("Window");
-	HostStyle.SetBackgroundBrush(FSlateColorBrush(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f)));
-	//HostStyle.SetChildBackgroundBrush(FSlateColorBrush(FLinearColor(1.0f, 1.0f, 0.0f, 1.0f)));
-	HostStyle.SetOutlineBrush(FSlateNoResource());
-	HostStyle.SetBorderBrush(FSlateNoResource());
-
-	HostWindow = SNew(SWindow)
-		.CreateTitleBar(false)
-		// @TODO: size hack
-		.ClientSize(FVector2D(1000.f, 1000.f))
-		.SupportsMaximize(false).SupportsMinimize(false)
-		.HasCloseButton(false)
-		//.SizingRule(ESizingRule::Autosized)
-		.SizingRule(ESizingRule::FixedSize)
-		.UseOSWindowBorder(false)
-		.LayoutBorder(FMargin())
-		.SupportsTransparency(EWindowTransparency::PerPixel)
-		.Style(&HostStyle)
-		// Push the window offscreen, though unfortunately we still show in the taskbar (see comment below)
-		.AutoCenter(EAutoCenter::None)
-		.SaneWindowPlacement(false)
-		.ScreenPosition(FVector2D(-5000, -5000))
-//		.IsInitiallyMinimized(true)
-//		.Visibility(EVisibility::Hidden)
-		;
-
-	//SetIndependentViewportSize
-
-	// @TODO: Ideally we would not have to show the window in order to render our node images, but so far not sure if/how this can
-	// be achieved. If not shown, the widget desired size doesn't get computed, which prevents us from taking the screenshot.
-	FSlateApplication::Get().AddWindow(HostWindow.ToSharedRef());// , false);
-*/
 	IndexXml = InitIndexXml(DocsTitle);
 	ClassDocsMap.Empty();
+
+	OutputDir = InOutputDir;
 
 	return true;
 }
 
-int32 FNodeDocsGenerator::ProcessSourceObject(UObject* Object, FString OutputPath)
+UK2Node* FNodeDocsGenerator::GT_InitializeForSpawner(UBlueprintNodeSpawner* Spawner, UObject* SourceObject, FNodeProcessingState& OutState)
 {
-	auto& BPActionMap = FBlueprintActionDatabase::Get().GetAllActions();
-
-	int32 Count = 0;
-	if(auto ActionList = BPActionMap.Find(Object))
+	if(!IsSpawnerDocumentable(Spawner, SourceObject->IsA< UBlueprint >()))
 	{
-		for(auto Spawner : *ActionList)
-		{
-			if(!IsSpawnerDocumentable(Spawner))
-			{
-				continue;
-			}
-
-			// Spawn an instance into the graph
-			auto NodeInst = Spawner->Invoke(Graph, TSet< TWeakObjectPtr< UObject > >(), FVector2D(0, 0));
-
-			// Currently Blueprint nodes only
-			auto K2NodeInst = Cast< UK2Node >(NodeInst);
-
-			//check(K2NodeInst);
-			if(K2NodeInst == nullptr)
-			{
-				UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to create node from spawner of class %s with node class %s."), *Spawner->GetClass()->GetName(), Spawner->NodeClass ? *Spawner->NodeClass->GetName() : TEXT("None"));
-				continue;
-			}
-
-			auto AssociatedClass = MapToAssociatedClass(K2NodeInst, Object);
-
-			if(!ClassDocsMap.Contains(AssociatedClass))
-			{
-				// New class xml file needs adding
-				ClassDocsMap.Add(AssociatedClass, InitClassDocXml(AssociatedClass));
-				// Also update the index xml
-				UpdateIndexDocWithClass(IndexXml.Get(), AssociatedClass);
-			}
-			auto ClassDocXml = ClassDocsMap.FindChecked(AssociatedClass);
-
-			FString ClassDocsPath = OutputPath / GetClassDocId(AssociatedClass);
-
-			AdjustNodeForSnapshot(NodeInst);
-
-			FString RelImageBasePath = TEXT("img");
-			FString ImageBasePath = ClassDocsPath / RelImageBasePath;
-			FString ImageFilename;
-			bool bImageSuccess = GenerateNodeImage(K2NodeInst, ImageBasePath, ImageFilename);
-			if(!bImageSuccess)
-			{
-				// @TODO:
-				continue;
-			}
-
-			FString NodePath = ClassDocsPath / TEXT("nodes");
-			if(!GenerateNodeDocs(K2NodeInst, NodePath, RelImageBasePath / ImageFilename))
-			{
-				// @TODO:
-				continue;
-			}
-
-			if(!UpdateClassDocWithNode(ClassDocXml.Get(), NodeInst))
-			{
-				// @TODO:
-				continue;
-			}
-
-			// @TODO: THink i need more cleanup here, like removing graph node from graph?
-
-			// Success!
-			++Count;
-		}
-
-		// @TODO: single page for class docs, at ClassDocsPath/<class_name>.html
+		return nullptr;
 	}
 
-	return Count;
+	// Spawn an instance into the graph
+	auto NodeInst = Spawner->Invoke(Graph, TSet< TWeakObjectPtr< UObject > >(), FVector2D(0, 0));
+
+	// Currently Blueprint nodes only
+	auto K2NodeInst = Cast< UK2Node >(NodeInst);
+
+	//check(K2NodeInst);
+	if(K2NodeInst == nullptr)
+	{
+		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to create node from spawner of class %s with node class %s."), *Spawner->GetClass()->GetName(), Spawner->NodeClass ? *Spawner->NodeClass->GetName() : TEXT("None"));
+		return nullptr;
+	}
+
+	auto AssociatedClass = MapToAssociatedClass(K2NodeInst, SourceObject);
+
+	if(!ClassDocsMap.Contains(AssociatedClass))
+	{
+		// New class xml file needs adding
+		ClassDocsMap.Add(AssociatedClass, InitClassDocXml(AssociatedClass));
+		// Also update the index xml
+		UpdateIndexDocWithClass(IndexXml.Get(), AssociatedClass);
+	}
+	
+	OutState = FNodeProcessingState();
+	OutState.ClassDocXml = ClassDocsMap.FindChecked(AssociatedClass);
+	OutState.ClassDocsPath = OutputDir / GetClassDocId(AssociatedClass);
+
+	return K2NodeInst;
 }
 
-bool FNodeDocsGenerator::Finalize(FString OutputPath)
+bool FNodeDocsGenerator::GT_Finalize(FString OutputPath)
 {
 	if(!SaveClassDocXml(OutputPath))
 	{
@@ -184,23 +116,19 @@ bool FNodeDocsGenerator::Finalize(FString OutputPath)
 
 void FNodeDocsGenerator::CleanUp()
 {
-	if(HostWindow.IsValid())
-	{
-		HostWindow->SetContent(SNullWidget::NullWidget);
-		HostWindow->RequestDestroyWindow();
-		HostWindow.Reset();
-	}
-
 	if(GraphPanel.IsValid())
 	{
 		GraphPanel.Reset();
 	}
 
+	DummyBP->RemoveFromRoot();
+	Graph->RemoveFromRoot();
+
 	Graph = nullptr;
 	DummyBP = nullptr;
 }
 
-bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FString const& ImagePath, FString& OutFilename)
+bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingState& State)
 {
 	SCOPE_SECONDS_COUNTER(GenerateNodeImageTime);
 
@@ -208,96 +136,60 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FString const& Im
 
 	bool bSuccess = false;
 
+	AdjustNodeForSnapshot(Node);
+
 	FString NodeName = GetNodeDocId(Node);
 
-	//GraphPanel->AddGraphNode(NodeWidget.ToSharedRef());
-	auto NodeWidget = FNodeFactory::CreateNodeWidget(Node);
-	NodeWidget->SetOwner(GraphPanel.ToSharedRef());
-
-	//
-	const bool bUseGammaCorrection = false;
-	FWidgetRenderer Renderer(bUseGammaCorrection);
-	Renderer.SetIsPrepassNeeded(true);
-	auto RenderTarget = Renderer.DrawWidget(NodeWidget.ToSharedRef(), DrawSize);
-	auto Desired = NodeWidget->GetDesiredSize();
-	FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
-	FIntRect Rect = FIntRect(0, 0, (int32)Desired.X, (int32)Desired.Y);
+	FIntRect Rect;
 	TArray< FColor > Bitmap;
-	FReadSurfaceDataFlags ReadPixelFlags(RCM_UNorm);
-	ReadPixelFlags.SetLinearToGamma(true); // @TODO: is this gamma correction, or something else?
-	if(RTResource->ReadPixels(Bitmap, ReadPixelFlags, Rect) == false)
+
+	bSuccess = DocGenThreads::RunOnGameThreadRetVal([this, Node, DrawSize, &Rect, &Bitmap]
 	{
-		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to read pixels for node image."));
+		auto NodeWidget = FNodeFactory::CreateNodeWidget(Node);
+		NodeWidget->SetOwner(GraphPanel.ToSharedRef());
+
+		const bool bUseGammaCorrection = false;
+		FWidgetRenderer Renderer(bUseGammaCorrection);
+		Renderer.SetIsPrepassNeeded(true);
+		auto RenderTarget = Renderer.DrawWidget(NodeWidget.ToSharedRef(), DrawSize);
+
+		auto Desired = NodeWidget->GetDesiredSize();
+	
+		FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
+		Rect = FIntRect(0, 0, (int32)Desired.X, (int32)Desired.Y);
+		FReadSurfaceDataFlags ReadPixelFlags(RCM_UNorm);
+		ReadPixelFlags.SetLinearToGamma(true); // @TODO: is this gamma correction, or something else?
+		if(RTResource->ReadPixels(Bitmap, ReadPixelFlags, Rect) == false)
+		{
+			UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to read pixels for node image."));
+			return false;
+		}
+
+		return true;
+	});
+
+	if(!bSuccess)
+	{
 		return false;
 	}
 
 	FHighResScreenshotConfig& HighResScreenshotConfig = GetHighResScreenshotConfig();
 	HighResScreenshotConfig.SetHDRCapture(false);
 
+	State.RelImageBasePath = TEXT("img");
+	FString ImageBasePath = State.ClassDocsPath / State.RelImageBasePath;
 	FString ImgFilename = FString::Printf(TEXT("nd_img_%s.png"), *NodeName);
-	FString ScreenshotSaveName = ImagePath / ImgFilename;
+	FString ScreenshotSaveName = ImageBasePath / ImgFilename;
 	if(HighResScreenshotConfig.SaveImage(ScreenshotSaveName, Bitmap, FIntPoint(Rect.Width(), Rect.Height())))
 	{
 		// Success!
 		bSuccess = true;
-		//InOutImagePath = ScreenshotSaveName;
-		OutFilename = ImgFilename;
+		State.ImageFilename = ImgFilename;
 	}
 	else
 	{
 		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to save screenshot image for node: %s"), *NodeName);
 	}
-	//
-
-#if 0
-	HostWindow->SetContent(
-		/*
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight()
-		[
-		*/
-		NodeWidget.ToSharedRef()
-		/*
-		]
-		*/
-	);
-
-	// Need to force a draw pass so that desired sizes are calculated
-	FSlateApplication::Get().ForceRedrawWindow(HostWindow.ToSharedRef());
-
-	auto Desired = NodeWidget->GetDesiredSize();
-	FIntRect Rect = FIntRect(0, 0, (int32)Desired.X, (int32)Desired.Y);
-	TArray< FColor > Bitmap;
-	FIntVector ImgSize;
-	if(FSlateApplication::Get().TakeScreenshot(
-		NodeWidget.ToSharedRef(),
-		Rect,
-		Bitmap,
-		ImgSize
-	))
-	{
-		FHighResScreenshotConfig& HighResScreenshotConfig = GetHighResScreenshotConfig();
-		HighResScreenshotConfig.SetHDRCapture(false);
-
-		FString ImgFilename = FString::Printf(TEXT("nd_img_%s.png"), *NodeName);
-		FString ScreenshotSaveName = ImagePath / ImgFilename;
-		if(HighResScreenshotConfig.SaveImage(ScreenshotSaveName, Bitmap, FIntPoint(ImgSize.X, ImgSize.Y)))
-		{
-			// Success!
-			bSuccess = true;
-			//InOutImagePath = ScreenshotSaveName;
-			OutFilename = ImgFilename;
-		}
-		else
-		{
-			UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to save screenshot image for node: %s"), *NodeName);
-		}
-	}
-	else
-	{
-		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to take screenshot of node: %s"), *NodeName);
-	}
-#endif
 
 	return bSuccess;
 }
@@ -385,7 +277,7 @@ TSharedPtr< FXmlFile > FNodeDocsGenerator::InitClassDocXml(UClass* Class)
 	auto Root = File->GetRootNode();
 
 	AppendChildCDATA(Root, TEXT("id"), GetClassDocId(Class));
-	AppendChildCDATA(Root, TEXT("display_name"), Class->GetName());	// @TODO: forgotten what the engine function is for class display name
+	AppendChildCDATA(Root, TEXT("display_name"), FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 	AppendChild(Root, TEXT("nodes"));
 
 	return File;
@@ -397,7 +289,7 @@ bool FNodeDocsGenerator::UpdateIndexDocWithClass(FXmlFile* DocFile, UClass* Clas
 	auto Classes = DocFile->GetRootNode()->FindChildNode(TEXT("classes"));
 	auto ClassElem = AppendChild(Classes, TEXT("class"));
 	AppendChildCDATA(ClassElem, TEXT("id"), ClassId);
-	AppendChildCDATA(ClassElem, TEXT("display_name"), Class->GetName());	// @TODO: display name as above comment
+	AppendChildCDATA(ClassElem, TEXT("display_name"), FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 	return true;
 }
 
@@ -416,10 +308,11 @@ inline bool ShouldDocumentPin(UEdGraphPin* Pin)
 	return !Pin->bHidden;
 }
 
-bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FString const& NodeDocsPath, FString const& RelImagePath)
+bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& State)
 {
 	SCOPE_SECONDS_COUNTER(GenerateNodeDocsTime);
 
+	auto NodeDocsPath = State.ClassDocsPath / TEXT("nodes");
 	FString DocFilePath = NodeDocsPath / (GetNodeDocId(Node) + TEXT(".xml"));
 
 	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
@@ -445,7 +338,7 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FString const& NodeDocs
 		NodeDesc = NodeDesc.Left(TargetIdx);
 	}
 	AppendChildCDATA(Root, TEXT("description"), NodeDesc);
-	AppendChildCDATA(Root, TEXT("imgpath"), RelImagePath);
+	AppendChildCDATA(Root, TEXT("imgpath"), State.RelImageBasePath / State.ImageFilename);
 	AppendChildCDATA(Root, TEXT("category"), Node->GetMenuCategory().ToString());
 	
 	auto Inputs = AppendChild(Root, TEXT("inputs"));
@@ -491,7 +384,11 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FString const& NodeDocs
 		return false;
 	}
 
-	//InOutNodeDocsPath = DocFilePath;
+	if(!UpdateClassDocWithNode(State.ClassDocXml.Get(), Node))
+	{
+		return false;
+	}
+	
 	return true;
 }
 
@@ -507,7 +404,7 @@ bool FNodeDocsGenerator::SaveClassDocXml(FString const& OutputDir)
 {
 	for(auto const& Entry : ClassDocsMap)
 	{
-		auto ClassId = GetClassDocId(Entry.Key);
+		auto ClassId = GetClassDocId(Entry.Key.Get());
 		auto Path = OutputDir / ClassId / (ClassId + TEXT(".xml"));
 		Entry.Value->Save(Path);
 	}
@@ -576,7 +473,7 @@ UClass* FNodeDocsGenerator::MapToAssociatedClass(UK2Node* NodeInst, UObject* Sou
 	}
 }
 
-bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner)
+bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner, bool bIsBlueprint)
 {
 	// Spawners of or deriving from the following classes will be excluded
 	static const TSubclassOf< UBlueprintNodeSpawner > ExcludedSpawnerClasses[] = {
@@ -584,6 +481,11 @@ bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner)
 		UBlueprintDelegateNodeSpawner::StaticClass(),
 		UBlueprintBoundNodeSpawner::StaticClass(),
 		UBlueprintComponentNodeSpawner::StaticClass(),
+	};
+
+	// Spawners of or deriving from the following classes will be excluded in a blueprint context
+	static const TSubclassOf< UBlueprintNodeSpawner > BlueprintOnlyExcludedSpawnerClasses[] = {
+		UBlueprintEventNodeSpawner::StaticClass(),
 	};
 
 	// Spawners for nodes of these types (or their subclasses) will be excluded
@@ -602,6 +504,17 @@ bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner)
 		if(Spawner->IsA(ExclSpawnerClass))
 		{
 			return false;
+		}
+	}
+
+	if(bIsBlueprint)
+	{
+		for(auto ExclSpawnerClass : BlueprintOnlyExcludedSpawnerClasses)
+		{
+			if(Spawner->IsA(ExclSpawnerClass))
+			{
+				return false;
+			}
 		}
 	}
 

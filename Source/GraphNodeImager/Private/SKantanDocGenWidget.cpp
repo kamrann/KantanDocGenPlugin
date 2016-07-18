@@ -81,6 +81,9 @@ FReply SKantanDocGenWidget::OnGenerateDocs()
 	auto& Module = FModuleManager::LoadModuleChecked< FGraphNodeImagerModule >(TEXT("GraphNodeImager"));
 	Module.GenerateDocs(UKantanDocGenSettingsObject::Get()->Settings);
 
+	TSharedRef< SWindow > ParentWindow = FSlateApplication::Get().FindWidgetWindow(AsShared()).ToSharedRef();
+	FSlateApplication::Get().RequestDestroyWindow(ParentWindow);
+
 	return FReply::Handled();
 }
 

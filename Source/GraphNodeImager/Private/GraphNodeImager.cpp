@@ -6,14 +6,13 @@
 #include "IConsoleManager.h"
 #include "IMainFrameModule.h"
 #include "LevelEditor.h"
-#include "NodeDocsGenerator.h"
+//#include "NodeDocsGenerator.h"
 #include "SKantanDocGenWidget.h"
-#include "Enumeration/NativeModuleEnumerator.h"
-#include "Enumeration/ContentPathEnumerator.h"
-#include "Enumeration/CompositeEnumerator.h"
+//#include "Enumeration/NativeModuleEnumerator.h"
+//#include "Enumeration/ContentPathEnumerator.h"
+//#include "Enumeration/CompositeEnumerator.h"
 #include "DocGenSettings.h"
-#include "SNotificationList.h"
-#include "NotificationManager.h"
+#include "DocGenTaskProcessor.h"
 
 #define LOCTEXT_NAMESPACE "GraphNodeImager"
 
@@ -82,6 +81,19 @@ inline bool MatchPotentiallyQuoted(const TCHAR* Stream, const TCHAR* Match, FStr
 
 void FGraphNodeImagerModule::GenerateDocs(FKantanDocGenSettings const& Settings)
 {
+	if(!Processor.IsValid())
+	{
+		Processor = MakeUnique< FDocGenTaskProcessor >();
+	}
+	
+	Processor->QueueTask(Settings);
+
+	if(!Processor->IsRunning())
+	{
+		FRunnableThread::Create(Processor.Get(), TEXT("KantanDocGenProcessorThread"), 0, TPri_BelowNormal);
+	}
+
+#if 0
 	TArray< TUniquePtr< ISourceObjectEnumerator > > Enumerators;
 	// @TODO: Specific class enumerator
 	Enumerators.Add(MakeUnique< FCompositeEnumerator< FNativeModuleEnumerator > >(Settings.NativeModules));
@@ -177,81 +189,7 @@ void FGraphNodeImagerModule::GenerateDocs(FKantanDocGenSettings const& Settings)
 	{
 		UE_LOG(LogGraphNodeImager, Error, TEXT("Failed to initialize doc generator, aborting."));
 	}
-}
-
-void FGraphNodeImagerModule::ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput)
-{
-	const FString DotNETBinariesDir = FPaths::EngineDir() / TEXT("Binaries/DotNET");
-	const FString DocGenExeName = TEXT("KantanDocGen.exe");
-	const FString DocGenPath = DotNETBinariesDir / DocGenExeName;
-
-	// Create a read and write pipe for the child process
-	void* PipeRead = nullptr;
-	void* PipeWrite = nullptr;
-	verify(FPlatformProcess::CreatePipe(PipeRead, PipeWrite));
-
-	FString Args =
-		FString(TEXT("-outputdir=")) + TEXT("\"") + OutputDir + TEXT("\"")
-		+ TEXT(" -fromintermediate -intermediatedir=") + TEXT("\"") + IntermediateDir + TEXT("\"")
-		+ TEXT(" -name=") + DocTitle
-		+ (bCleanOutput ? TEXT(" -cleanoutput") : TEXT(""))
-		;
-	FProcHandle Proc = FPlatformProcess::CreateProc(
-		*DocGenPath,
-		*Args,
-		true,
-		false,
-		false,
-		nullptr,
-		0,
-		nullptr,
-		PipeWrite
-	);
-
-	if(Proc.IsValid())
-	{
-		int32 ReturnCode = 0;
-		FString BufferedText;
-		for(bool bProcessFinished = false; !bProcessFinished; )
-		{
-			bProcessFinished = FPlatformProcess::GetProcReturnCode(Proc, &ReturnCode);
-
-			/*			if(!bProcessFinished && Warn->ReceivedUserCancel())
-						{
-							FPlatformProcess::TerminateProc(ProcessHandle);
-							bProcessFinished = true;
-						}
-			*/
-			BufferedText += FPlatformProcess::ReadPipe(PipeRead);
-
-			int32 EndOfLineIdx;
-			while(BufferedText.FindChar('\n', EndOfLineIdx))
-			{
-				FString Line = BufferedText.Left(EndOfLineIdx);
-				Line.RemoveFromEnd(TEXT("\r"));
-
-				UE_LOG(LogGraphNodeImager, Log, TEXT("[KantanDocGen] %s"), *Line);
-
-				BufferedText = BufferedText.Mid(EndOfLineIdx + 1);
-			}
-
-			FPlatformProcess::Sleep(0.1f);
-		}
-
-		//FPlatformProcess::WaitForProc(Proc);
-		//FPlatformProcess::GetProcReturnCode(Proc, &ReturnCode);
-		FPlatformProcess::CloseProc(Proc);
-		Proc.Reset();
-
-		if(ReturnCode != 0)
-		{
-			UE_LOG(LogGraphNodeImager, Error, TEXT("KantanDocGen tool failed, see above output."));
-		}
-	}
-
-	// Close the pipes
-	FPlatformProcess::ClosePipe(0, PipeRead);
-	FPlatformProcess::ClosePipe(0, PipeWrite);
+#endif
 }
 
 void FGraphNodeImagerModule::ShowDocGenUI()

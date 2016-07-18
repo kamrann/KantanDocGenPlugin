@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ModuleManager.h"
+#include "DocGenTaskProcessor.h"	// TUniquePtr seems to need full definition...
 
 
 /*
@@ -12,12 +13,7 @@ class FGraphNodeImagerModule : public FDefaultGameModuleImpl
 {
 public:
 	FGraphNodeImagerModule()
-/*		: DumpNodes_CCmd(
-			TEXT("imagenodes"),
-			TEXT("Dumps images of graph nodes to file."),
-			FConsoleCommandWithArgsDelegate::CreateRaw(this, &FGraphNodeImagerModule::DumpNodes)
-		)
-*/	{}
+	{}
 
 public:
 	/** IModuleInterface implementation */
@@ -32,7 +28,7 @@ protected:
 	void ShowDocGenUI();
 
 protected:
-//	FAutoConsoleCommand DumpNodes_CCmd;
+	TUniquePtr< FDocGenTaskProcessor > Processor;
 
 	TSharedPtr< FUICommandList > UICommands;
 };

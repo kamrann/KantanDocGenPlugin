@@ -12,19 +12,23 @@
 
 
 class ISourceObjectEnumerator;
+class FNodeDocsGenerator;
 
 
-class FDocGenTaskProcessor//: public FTickableEditorObject
+class FDocGenTaskProcessor: public FRunnable
 {
 public:
-	FDocGenTaskProcessor()
-	{}
+	FDocGenTaskProcessor();
 
 public:
-//	virtual bool IsTickable() const override;
-//	virtual void Tick(float DeltaTime) override;
+	void QueueTask(FKantanDocGenSettings const& Settings);
+	bool IsRunning() const;
 
-	void Run();
+public:
+	virtual bool Init() override;
+	virtual uint32 Run() override;
+	virtual void Exit() override;
+	virtual void Stop() override;
 
 protected:
 	struct FDocGenTask
@@ -35,7 +39,8 @@ protected:
 
 	struct FDocGenCurrentTask
 	{
-		TUniquePtr< FDocGenTask > Task;
+		TSharedPtr< FDocGenTask > Task;
+
 		TQueue< TSharedPtr< ISourceObjectEnumerator > > Enumerators;
 		TSet< FName > Excluded;
 		TSet< TWeakObjectPtr< UObject > > Processed;
@@ -43,16 +48,26 @@ protected:
 		TSharedPtr< ISourceObjectEnumerator > CurrentEnumerator;
 		TWeakObjectPtr< UObject > SourceObject;
 		TQueue< TWeakObjectPtr< UBlueprintNodeSpawner > > CurrentSpawners;
+
+		TUniquePtr< FNodeDocsGenerator > DocGen;
 	};
 
 	struct FDocGenOutputTask
 	{
-		TUniquePtr< FDocGenTask > Task;
+		TSharedPtr< FDocGenTask > Task;
 	};
 
-	TQueue< TSharedPtr< FDocGenTask > > Queued;
-	FDocGenCurrentTask Current;
+protected:
+	void ProcessTask(TSharedPtr< FDocGenTask > InTask);
+	bool ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput);
+
+protected:
+	TQueue< TSharedPtr< FDocGenTask > > Waiting;
+	TUniquePtr< FDocGenCurrentTask > Current;
 	TQueue< TSharedPtr< FDocGenOutputTask > > Converting;
+
+	FThreadSafeBool bRunning;	// @NOTE: Using this to sync with module calls from game thread is not 100% okay (we're not atomically testing), but whatevs.
+	FThreadSafeBool bTerminationRequest;
 };
 
 

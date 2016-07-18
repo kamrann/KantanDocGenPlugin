@@ -9,7 +9,7 @@
 
 void FGraphNodeImagerCommands::RegisterCommands()
 {
-	UI_COMMAND(ShowDocGenUI, "Show Kantan DocGen", "Shows the Kantan Doc Gen Tab", EUserInterfaceActionType::Button, FInputGesture());
+	UI_COMMAND(ShowDocGenUI, "Kantan DocGen", "Shows the Kantan Doc Gen tab", EUserInterfaceActionType::Button, FInputGesture());
 	NameToCommandMap.Add(TEXT("ShowDocGenUI"), ShowDocGenUI);
 }
 
