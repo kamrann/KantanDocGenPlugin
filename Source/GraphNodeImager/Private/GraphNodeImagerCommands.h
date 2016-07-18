@@ -25,7 +25,7 @@ public:
 
 public:
 	// Mode Switch
-	TSharedPtr< FUICommandInfo > TestCommand;
+	TSharedPtr< FUICommandInfo > ShowDocGenUI;
 
 	// Map
 	TMap< FName, TSharedPtr< FUICommandInfo > > NameToCommandMap;

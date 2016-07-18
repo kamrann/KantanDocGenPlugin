@@ -30,7 +30,9 @@ public class GraphNodeImager : ModuleRules
 				"BlueprintGraph",
 				"GraphEditor",
 				"MainFrame",
+				"LevelEditor",
 				"XmlParser",
+				"UMG",
             }
         );
 	}

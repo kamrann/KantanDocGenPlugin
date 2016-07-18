@@ -40,11 +40,17 @@ protected:
 	class UBlueprint* DummyBP;
 	class UEdGraph* Graph;
 	TSharedPtr< class SGraphPanel > GraphPanel;
-	FWindowStyle HostStyle;
-	TSharedPtr< class SWindow > HostWindow;
+	//FWindowStyle HostStyle;
+	//TSharedPtr< class SWindow > HostWindow;
 
 	TSharedPtr< FXmlFile > IndexXml;
 	TMap< UClass*, TSharedPtr< FXmlFile > > ClassDocsMap;
+
+public:
+	//
+	double GenerateNodeImageTime = 0.0;
+	double GenerateNodeDocsTime = 0.0;
+	//
 };
 
 

@@ -13,8 +13,11 @@
 #include "BlueprintActionDatabase.h"
 #include "BlueprintNodeSpawner.h"
 #include "BlueprintFunctionNodeSpawner.h"
+#include "BlueprintBoundNodeSpawner.h"
+#include "BlueprintComponentNodeSpawner.h"
 #include "HighResScreenshot.h"
 #include "XmlFile.h"
+#include "WidgetRenderer.h"
 
 
 FNodeDocsGenerator::~FNodeDocsGenerator()
@@ -49,7 +52,7 @@ bool FNodeDocsGenerator::Init(FString const& DocsTitle)
 	// We want full detail for rendering, passing a super-high zoom value will guarantee the highest LOD.
 	GraphPanel->RestoreViewSettings(FVector2D(0, 0), 10.0f);
 
-	HostStyle = FCoreStyle::Get().GetWidgetStyle<FWindowStyle>("Window");
+/*	HostStyle = FCoreStyle::Get().GetWidgetStyle<FWindowStyle>("Window");
 	HostStyle.SetBackgroundBrush(FSlateColorBrush(FLinearColor(1.0f, 1.0f, 1.0f, 0.0f)));
 	//HostStyle.SetChildBackgroundBrush(FSlateColorBrush(FLinearColor(1.0f, 1.0f, 0.0f, 1.0f)));
 	HostStyle.SetOutlineBrush(FSlateNoResource());
@@ -80,7 +83,7 @@ bool FNodeDocsGenerator::Init(FString const& DocsTitle)
 	// @TODO: Ideally we would not have to show the window in order to render our node images, but so far not sure if/how this can
 	// be achieved. If not shown, the widget desired size doesn't get computed, which prevents us from taking the screenshot.
 	FSlateApplication::Get().AddWindow(HostWindow.ToSharedRef());// , false);
-
+*/
 	IndexXml = InitIndexXml(DocsTitle);
 	ClassDocsMap.Empty();
 
@@ -106,7 +109,13 @@ int32 FNodeDocsGenerator::ProcessSourceObject(UObject* Object, FString OutputPat
 
 			// Currently Blueprint nodes only
 			auto K2NodeInst = Cast< UK2Node >(NodeInst);
-			check(K2NodeInst);
+
+			//check(K2NodeInst);
+			if(K2NodeInst == nullptr)
+			{
+				UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to create node from spawner of class %s with node class %s."), *Spawner->GetClass()->GetName(), Spawner->NodeClass ? *Spawner->NodeClass->GetName() : TEXT("None"));
+				continue;
+			}
 
 			auto AssociatedClass = MapToAssociatedClass(K2NodeInst, Object);
 
@@ -193,6 +202,10 @@ void FNodeDocsGenerator::CleanUp()
 
 bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FString const& ImagePath, FString& OutFilename)
 {
+	SCOPE_SECONDS_COUNTER(GenerateNodeImageTime);
+
+	const FVector2D DrawSize(1024.0f, 1024.0f);
+
 	bool bSuccess = false;
 
 	FString NodeName = GetNodeDocId(Node);
@@ -201,6 +214,42 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FString const& Im
 	auto NodeWidget = FNodeFactory::CreateNodeWidget(Node);
 	NodeWidget->SetOwner(GraphPanel.ToSharedRef());
 
+	//
+	const bool bUseGammaCorrection = false;
+	FWidgetRenderer Renderer(bUseGammaCorrection);
+	Renderer.SetIsPrepassNeeded(true);
+	auto RenderTarget = Renderer.DrawWidget(NodeWidget.ToSharedRef(), DrawSize);
+	auto Desired = NodeWidget->GetDesiredSize();
+	FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
+	FIntRect Rect = FIntRect(0, 0, (int32)Desired.X, (int32)Desired.Y);
+	TArray< FColor > Bitmap;
+	FReadSurfaceDataFlags ReadPixelFlags(RCM_UNorm);
+	ReadPixelFlags.SetLinearToGamma(true); // @TODO: is this gamma correction, or something else?
+	if(RTResource->ReadPixels(Bitmap, ReadPixelFlags, Rect) == false)
+	{
+		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to read pixels for node image."));
+		return false;
+	}
+
+	FHighResScreenshotConfig& HighResScreenshotConfig = GetHighResScreenshotConfig();
+	HighResScreenshotConfig.SetHDRCapture(false);
+
+	FString ImgFilename = FString::Printf(TEXT("nd_img_%s.png"), *NodeName);
+	FString ScreenshotSaveName = ImagePath / ImgFilename;
+	if(HighResScreenshotConfig.SaveImage(ScreenshotSaveName, Bitmap, FIntPoint(Rect.Width(), Rect.Height())))
+	{
+		// Success!
+		bSuccess = true;
+		//InOutImagePath = ScreenshotSaveName;
+		OutFilename = ImgFilename;
+	}
+	else
+	{
+		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to save screenshot image for node: %s"), *NodeName);
+	}
+	//
+
+#if 0
 	HostWindow->SetContent(
 		/*
 		SNew(SVerticalBox)
@@ -248,6 +297,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FString const& Im
 	{
 		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to take screenshot of node: %s"), *NodeName);
 	}
+#endif
 
 	return bSuccess;
 }
@@ -368,6 +418,8 @@ inline bool ShouldDocumentPin(UEdGraphPin* Pin)
 
 bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FString const& NodeDocsPath, FString const& RelImagePath)
 {
+	SCOPE_SECONDS_COUNTER(GenerateNodeDocsTime);
+
 	FString DocFilePath = NodeDocsPath / (GetNodeDocId(Node) + TEXT(".xml"));
 
 	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
@@ -530,6 +582,8 @@ bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner)
 	static const TSubclassOf< UBlueprintNodeSpawner > ExcludedSpawnerClasses[] = {
 		UBlueprintVariableNodeSpawner::StaticClass(),
 		UBlueprintDelegateNodeSpawner::StaticClass(),
+		UBlueprintBoundNodeSpawner::StaticClass(),
+		UBlueprintComponentNodeSpawner::StaticClass(),
 	};
 
 	// Spawners for nodes of these types (or their subclasses) will be excluded

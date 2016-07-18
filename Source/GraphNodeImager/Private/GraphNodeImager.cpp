@@ -5,7 +5,15 @@
 #include "GraphNodeImagerCommands.h"
 #include "IConsoleManager.h"
 #include "IMainFrameModule.h"
+#include "LevelEditor.h"
 #include "NodeDocsGenerator.h"
+#include "SKantanDocGenWidget.h"
+#include "Enumeration/NativeModuleEnumerator.h"
+#include "Enumeration/ContentPathEnumerator.h"
+#include "Enumeration/CompositeEnumerator.h"
+#include "DocGenSettings.h"
+#include "SNotificationList.h"
+#include "NotificationManager.h"
 
 #define LOCTEXT_NAMESPACE "GraphNodeImager"
 
@@ -17,7 +25,37 @@ DEFINE_LOG_CATEGORY(LogGraphNodeImager);
 
 void FGraphNodeImagerModule::StartupModule()
 {
-	FGraphNodeImagerCommands::Register();
+	{
+		// Create command list
+		UICommands = MakeShareable< FUICommandList >(new FUICommandList);
+
+		FGraphNodeImagerCommands::Register();
+
+		// Map commands
+		FUIAction ShowDocGenUI_UIAction(
+			FExecuteAction::CreateRaw(this, &FGraphNodeImagerModule::ShowDocGenUI),
+			FCanExecuteAction::CreateLambda([] { return true; })
+		);
+
+		auto CmdInfo = FGraphNodeImagerCommands::Get().ShowDocGenUI;
+		UICommands->MapAction(CmdInfo, ShowDocGenUI_UIAction);
+
+		// Setup menu extension
+		auto AddMenuExtension = [](FMenuBuilder& MenuBuilder)
+		{
+			MenuBuilder.AddMenuEntry(FGraphNodeImagerCommands::Get().ShowDocGenUI);
+		};
+
+		auto& LevelEditorModule = FModuleManager::LoadModuleChecked< FLevelEditorModule >("LevelEditor");
+		TSharedRef< FExtender > MenuExtender(new FExtender());
+		MenuExtender->AddMenuExtension(
+			TEXT("FileProject"),
+			EExtensionHook::After,
+			UICommands.ToSharedRef(),
+			FMenuExtensionDelegate::CreateLambda(AddMenuExtension)
+		);
+		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
+	}
 }
 
 void FGraphNodeImagerModule::ShutdownModule()
@@ -42,203 +80,34 @@ inline bool MatchPotentiallyQuoted(const TCHAR* Stream, const TCHAR* Match, FStr
 	return false;
 }
 
-void FGraphNodeImagerModule::DumpNodes(TArray< FString > const& Args)
+void FGraphNodeImagerModule::GenerateDocs(FKantanDocGenSettings const& Settings)
 {
-	FString OutputDir;
-	FString BlueprintClassName;
-	FString ClassesString;
-	FString PackagesString;
-	FString CategoriesString;
-	FString DocTitle;
-	bool bCleanOutput = false;
+	TArray< TUniquePtr< ISourceObjectEnumerator > > Enumerators;
+	// @TODO: Specific class enumerator
+	Enumerators.Add(MakeUnique< FCompositeEnumerator< FNativeModuleEnumerator > >(Settings.NativeModules));
+	Enumerators.Add(MakeUnique< FCompositeEnumerator< FContentPathEnumerator > >(Settings.ContentPaths));
 
 	FString IntermediateDir = FPaths::GameIntermediateDir() / TEXT("KantanDocGen");
 
-	for(FString Arg : Args)
-	{
-		MatchPotentiallyQuoted(*Arg, TEXT("outdir="), OutputDir);
-		FParse::Value(*Arg, TEXT("blueprintclass="), BlueprintClassName);
-		FParse::Value(*Arg, TEXT("package="), PackagesString, false);
-		FParse::Value(*Arg, TEXT("class="), ClassesString, false);
-		FParse::Value(*Arg, TEXT("category="), CategoriesString, false);
-		MatchPotentiallyQuoted(*Arg, TEXT("title="), DocTitle);
-		bCleanOutput = bCleanOutput || (Arg == TEXT("clean"));
-	}
-
-	// Must have an output path
-	if(!FPaths::ValidatePath(OutputDir))
-	{
-		UE_LOG(LogGraphNodeImager, Error, TEXT("Invalid output directory (outdir=), aborting."));
-		return;
-	}
-
-	// Must have a title
-	if(DocTitle.IsEmpty())
-	{
-		UE_LOG(LogGraphNodeImager, Error, TEXT("No documentation title specified (title=), aborting."));
-		return;
-	}
-
-	auto BlueprintClass = FindObject< UClass >(ANY_PACKAGE, *BlueprintClassName);
-	if(BlueprintClass == nullptr)
-	{
-		BlueprintClass = AActor::StaticClass();
-		if(!BlueprintClassName.IsEmpty())
-		{
-			UE_LOG(LogGraphNodeImager, Warning, TEXT("Blueprint class '%s' not found, defaulting to Actor."), *BlueprintClassName);
-		}
-	}
-
-	const TCHAR* ListDelims[] = {
-		TEXT(","),
-		TEXT("|")
-	};
-
-	int32 const NumDelims = sizeof(ListDelims) / sizeof(ListDelims[0]);
-
-	// Store optional category filters
-	TArray< FString > Categories;
-	CategoriesString.ParseIntoArray(Categories, ListDelims, NumDelims);
-
-	// Enumeration function
-	typedef TFunction< int32(UObject*) > FObjectProcessFunc;
-
-	TFunction< int32(FObjectProcessFunc&) > BatchProcessFunc;
-
-	// Do we have specific classes?
-	if(!ClassesString.IsEmpty())
-	{
-		TArray< FString > ClassNames;
-		ClassesString.ParseIntoArray(ClassNames, ListDelims, NumDelims);
-
-		BatchProcessFunc = [ClassNames](FObjectProcessFunc& ObjectProcessFunc) -> int32
-		{
-			int32 Result = 0;
-			for(auto const& Name : ClassNames)
-			{
-				UObject* Object = nullptr;
-				
-				// Native classes don't need loading
-				if(auto Class = FindObject< UClass >(ANY_PACKAGE, *Name))
-				{
-					Object = Class;
-				}
-				else if(auto Blueprint = FindObject< UBlueprint >(ANY_PACKAGE, *Name))
-				{
-					Object = Blueprint;
-				}
-				// For blueprints though, it may be unloaded
-				else if(auto Blueprint = LoadObject< UBlueprint >(ANY_PACKAGE, *Name))
-				{
-					Object = Blueprint;
-				}
-
-				if(Object == nullptr)
-				{
-					UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to find source class '%s', skipping."), *Name);
-					continue;
-				}
-
-				Result += ObjectProcessFunc(Object);
-			}
-
-			return Result;
-		};
-		
-		if(!PackagesString.IsEmpty())
-		{
-			UE_LOG(LogGraphNodeImager, Warning, TEXT("Package filter ignored due to class filter being specified."));
-		}
-	}
-	else 
-	{
-		// No class(es) specified, so enumerate from packages
-
-		// Must have at least one package specified
-		if(PackagesString.IsEmpty())
-		{
-			UE_LOG(LogGraphNodeImager, Error, TEXT("Either a class filter or package filter must be specified, aborting."));
-			return;
-		}
-
-		TArray< FString > PackageNames;
-		PackagesString.ParseIntoArray(PackageNames, ListDelims, NumDelims);
-		ensure(PackageNames.Num());
-
-		BatchProcessFunc = [PackageNames](FObjectProcessFunc& ObjectProcessFunc) -> int32
-		{
-			int32 Result = 0;
-			for(auto const& PkgName : PackageNames)
-			{
-				// Attempt to find the package
-				auto Package = FindPackage(nullptr, *PkgName);
-				if(Package == nullptr)
-				{
-					// If it is not in memory, try to load it.
-					Package = LoadPackage(nullptr, *PkgName, LOAD_None);
-				}
-				if(Package == nullptr)
-				{
-					UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to find specified package '%s', skipping."), *PkgName);
-					continue;
-				}
-
-				// Make sure it's fully loaded
-				Package->FullyLoad();
-
-				// @TODO: Work out why the below enumeration is called twice for every class in the package (it's called on the exact same uclass instance)
-				TSet< UObject* > Processed;
-
-				// Functor to invoke on every object found in the package
-				TFunction< void(UObject*) > ObjectEnumFtr = [&](UObject* Obj)
-				{
-					// The BP action database appears to be keyed either on native UClass objects, or, in the
-					// case of blueprints, on the Blueprint object itself, as opposed to the generated class.
-
-					UObject* ObjectToProcess = nullptr;
-
-					// Native class?
-					if(auto Class = Cast< UClass >(Obj))
-					{
-						if(Class->HasAllClassFlags(CLASS_Native) && !Class->HasAnyFlags(RF_ClassDefaultObject))
-						{
-							ObjectToProcess = Class;
-						}
-					}
-					else if(auto Blueprint = Cast< UBlueprint >(Obj))
-					{
-						ObjectToProcess = Blueprint;
-					}
-
-					if(ObjectToProcess && !Processed.Contains(ObjectToProcess))
-					{
-						UE_LOG(LogGraphNodeImager, Log, TEXT("Enumerating object '%s' in package '%s'"), *ObjectToProcess->GetName(), *PkgName);
-
-						// Process this class
-						Result += ObjectProcessFunc(ObjectToProcess);
-						
-						Processed.Add(ObjectToProcess);
-					}
-				};
-
-				// Enumerate all objects in the package
-				ForEachObjectWithOuter(Package, ObjectEnumFtr, true /* Include nested */);
-			}
-
-			return Result;
-		};
-	}
-
-	check((bool)BatchProcessFunc);
-
 	// Initialize the doc generator
 	auto Gen = MakeUnique< FNodeDocsGenerator >();
-	if(Gen->Init(DocTitle))
+	if(Gen->Init(Settings.DocumentationTitle))
 	{
-		FObjectProcessFunc ClassFunc = [&](UObject* Object) -> int32
-		{
-			return Gen->ProcessSourceObject(Object, IntermediateDir);
-		};
+		FNotificationInfo Info(LOCTEXT("DocGenInProgress", "Doc gen in progress"));
+		Info.Image = FEditorStyle::GetBrush(TEXT("LevelEditor.RecompileGameCode"));
+		Info.FadeInDuration = 0.1f;
+		Info.FadeOutDuration = 0.5f;
+		//Info.ExpireDuration = 1.5f;
+		Info.bUseThrobber = true;
+		Info.bUseSuccessFailIcons = false;
+		Info.bUseLargeFont = true;
+		Info.bFireAndForget = false;
+		Info.bAllowThrottleWhenFrameRateIsLow = false;
+		auto NotificationItem = FSlateNotificationManager::Get().AddNotification(Info);
+		//NotificationItem->SetCompletionState(SNotificationItem::CS_Success);
+		//NotificationItem->ExpireAndFadeout();
+		//GEditor->PlayEditorSound(CompileSuccessSound);
+
 
 		bool const bCleanIntermediate = true;
 		if(bCleanIntermediate)
@@ -246,23 +115,58 @@ void FGraphNodeImagerModule::DumpNodes(TArray< FString > const& Args)
 			IFileManager::Get().DeleteDirectory(*IntermediateDir, false, true);
 		}
 
-		// Invoke the batch processor, which will call the generator for every class enumerated.
-		int32 Count = BatchProcessFunc(ClassFunc);
+		TSet< FName > Excluded;
+		for(auto const& Name : Settings.ExcludedClasses)
+		{
+			Excluded.Add(Name);
+		}
+
+		double ObjectProcessingTime = 0.0;
+		double EnumTime = 0.0;
+
+		TSet< UObject* > Processed;
+		int32 NodeCount = 0;
+		for(auto& Enumerator : Enumerators)
+		{
+			double EnumStart = FPlatformTime::Seconds();
+
+			while(auto Obj = Enumerator->GetNext())
+			{
+				EnumTime += FPlatformTime::Seconds() - EnumStart;
+
+				if(Excluded.Contains(Obj->GetFName()))
+				{
+					continue;
+				}
+
+				{
+					SCOPE_SECONDS_COUNTER(ObjectProcessingTime);
+
+					NodeCount += Gen->ProcessSourceObject(Obj, IntermediateDir);
+				}
+
+				EnumStart = FPlatformTime::Seconds();
+			}
+
+			EnumTime += FPlatformTime::Seconds() - EnumStart;
+		}
 
 		Gen->Finalize(IntermediateDir);
 
-		// TEMP!!!!
-		//Gen.Release();
-		//
+		UE_LOG(LogGraphNodeImager, Log, TEXT("Intermediate doc gen timing:"));
+		UE_LOG(LogGraphNodeImager, Log, TEXT("Enumeration: %.3fs"), EnumTime);
+		UE_LOG(LogGraphNodeImager, Log, TEXT("Processing: %.3fs (Image gen: %.3fs, Doc gen: %.3fs)"), ObjectProcessingTime, Gen->GenerateNodeImageTime, Gen->GenerateNodeDocsTime);
 
 		// Destroy the generator, which will also kill the host window.
 		Gen.Reset();
 
-		if(Count > 0)
+		if(NodeCount > 0)
 		{
-			UE_LOG(LogGraphNodeImager, Log, TEXT("Intermediate docs generated for %i nodes."), Count);
+			UE_LOG(LogGraphNodeImager, Log, TEXT("Intermediate docs generated for %i nodes."), NodeCount);
 
-			ProcessIntermediateDocs(IntermediateDir, OutputDir, DocTitle, bCleanOutput);
+			SCOPE_LOG_TIME_IN_SECONDS("ProcessIntermediateDocs", nullptr);
+
+			ProcessIntermediateDocs(IntermediateDir, Settings.OutputDirectory.Path, Settings.DocumentationTitle, Settings.bCleanOutputDirectory);
 		}
 		else
 		{
@@ -312,12 +216,12 @@ void FGraphNodeImagerModule::ProcessIntermediateDocs(FString const& Intermediate
 		{
 			bProcessFinished = FPlatformProcess::GetProcReturnCode(Proc, &ReturnCode);
 
-/*			if(!bProcessFinished && Warn->ReceivedUserCancel())
-			{
-				FPlatformProcess::TerminateProc(ProcessHandle);
-				bProcessFinished = true;
-			}
-*/
+			/*			if(!bProcessFinished && Warn->ReceivedUserCancel())
+						{
+							FPlatformProcess::TerminateProc(ProcessHandle);
+							bProcessFinished = true;
+						}
+			*/
 			BufferedText += FPlatformProcess::ReadPipe(PipeRead);
 
 			int32 EndOfLineIdx;
@@ -348,6 +252,37 @@ void FGraphNodeImagerModule::ProcessIntermediateDocs(FString const& Intermediate
 	// Close the pipes
 	FPlatformProcess::ClosePipe(0, PipeRead);
 	FPlatformProcess::ClosePipe(0, PipeWrite);
+}
+
+void FGraphNodeImagerModule::ShowDocGenUI()
+{
+	const FText WindowTitle = LOCTEXT("DocGenWindowTitle", "Kantan Doc Gen");
+
+	TSharedPtr< SWindow > Window =
+		SNew(SWindow)
+		.Title(WindowTitle)
+		.MinWidth(400.0f)
+		.MinHeight(300.0f)
+		.MaxHeight(600.0f)
+		.SupportsMaximize(false)
+		.SupportsMinimize(false)
+		.SizingRule(ESizingRule::Autosized)
+		;
+
+	TSharedRef< SWidget > DocGenContent = SNew(SKantanDocGenWidget);
+	Window->SetContent(DocGenContent);
+
+	IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked< IMainFrameModule >("MainFrame");
+	TSharedPtr< SWindow > ParentWindow = MainFrame.GetParentWindow();
+
+	if(ParentWindow.IsValid())
+	{
+		FSlateApplication::Get().AddModalWindow(Window.ToSharedRef(), ParentWindow.ToSharedRef());
+	}
+	else
+	{
+		FSlateApplication::Get().AddWindow(Window.ToSharedRef());
+	}
 }
 
 

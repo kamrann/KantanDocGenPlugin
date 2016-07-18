@@ -9,8 +9,8 @@
 
 void FGraphNodeImagerCommands::RegisterCommands()
 {
-//	UI_COMMAND(TestCommand, "Mode - Manage", "", EUserInterfaceActionType::RadioButton, FInputGesture());
-//	NameToCommandMap.Add("ToolMode_Manage", TestCommand);
+	UI_COMMAND(ShowDocGenUI, "Show Kantan DocGen", "Shows the Kantan Doc Gen Tab", EUserInterfaceActionType::Button, FInputGesture());
+	NameToCommandMap.Add(TEXT("ShowDocGenUI"), ShowDocGenUI);
 }
 
 
