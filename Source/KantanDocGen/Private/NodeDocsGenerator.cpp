@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "GraphNodeImager.h"
+#include "KantanDocGenPCH.h"
 #include "NodeDocsGenerator.h"
 #include "SGraphNode.h"
 #include "Editor/GraphEditor/Private/NodeFactory.h"
@@ -27,7 +27,7 @@ FNodeDocsGenerator::~FNodeDocsGenerator()
 	CleanUp();
 }
 
-bool FNodeDocsGenerator::GT_Init(FString const& DocsTitle, FString const& InOutputDir, UClass* BlueprintContextClass)
+bool FNodeDocsGenerator::GT_Init(FString const& InDocsTitle, FString const& InOutputDir, UClass* BlueprintContextClass)
 {
 	DummyBP = CastChecked< UBlueprint >(FKismetEditorUtilities::CreateBlueprint(
 		BlueprintContextClass,
@@ -54,6 +54,8 @@ bool FNodeDocsGenerator::GT_Init(FString const& DocsTitle, FString const& InOutp
 	// We want full detail for rendering, passing a super-high zoom value will guarantee the highest LOD.
 	GraphPanel->RestoreViewSettings(FVector2D(0, 0), 10.0f);
 
+	DocsTitle = InDocsTitle;
+
 	IndexXml = InitIndexXml(DocsTitle);
 	ClassDocsMap.Empty();
 
@@ -75,10 +77,9 @@ UK2Node* FNodeDocsGenerator::GT_InitializeForSpawner(UBlueprintNodeSpawner* Spaw
 	// Currently Blueprint nodes only
 	auto K2NodeInst = Cast< UK2Node >(NodeInst);
 
-	//check(K2NodeInst);
 	if(K2NodeInst == nullptr)
 	{
-		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to create node from spawner of class %s with node class %s."), *Spawner->GetClass()->GetName(), Spawner->NodeClass ? *Spawner->NodeClass->GetName() : TEXT("None"));
+		UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to create node from spawner of class %s with node class %s."), *Spawner->GetClass()->GetName(), Spawner->NodeClass ? *Spawner->NodeClass->GetName() : TEXT("None"));
 		return nullptr;
 	}
 
@@ -161,7 +162,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 		ReadPixelFlags.SetLinearToGamma(true); // @TODO: is this gamma correction, or something else?
 		if(RTResource->ReadPixels(Bitmap, ReadPixelFlags, Rect) == false)
 		{
-			UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to read pixels for node image."));
+			UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to read pixels for node image."));
 			return false;
 		}
 
@@ -176,8 +177,8 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 	FHighResScreenshotConfig& HighResScreenshotConfig = GetHighResScreenshotConfig();
 	HighResScreenshotConfig.SetHDRCapture(false);
 
-	State.RelImageBasePath = TEXT("img");
-	FString ImageBasePath = State.ClassDocsPath / State.RelImageBasePath;
+	State.RelImageBasePath = TEXT("../img");
+	FString ImageBasePath = State.ClassDocsPath / TEXT("img");// State.RelImageBasePath;
 	FString ImgFilename = FString::Printf(TEXT("nd_img_%s.png"), *NodeName);
 	FString ScreenshotSaveName = ImageBasePath / ImgFilename;
 	if(HighResScreenshotConfig.SaveImage(ScreenshotSaveName, Bitmap, FIntPoint(Rect.Width(), Rect.Height())))
@@ -188,7 +189,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 	}
 	else
 	{
-		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to save screenshot image for node: %s"), *NodeName);
+		UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to save screenshot image for node: %s"), *NodeName);
 	}
 
 	return bSuccess;
@@ -202,6 +203,12 @@ inline FString WrapAsCDATA(FString const& InString)
 inline FXmlNode* AppendChild(FXmlNode* Parent, FString const& Name)
 {
 	Parent->AppendChildNode(Name, FString());
+	return Parent->GetChildrenNodes().Last();
+}
+
+inline FXmlNode* AppendChildRaw(FXmlNode* Parent, FString const& Name, FString const& TextContent)
+{
+	Parent->AppendChildNode(Name, TextContent);
 	return Parent->GetChildrenNodes().Last();
 }
 
@@ -276,6 +283,7 @@ TSharedPtr< FXmlFile > FNodeDocsGenerator::InitClassDocXml(UClass* Class)
 	TSharedPtr< FXmlFile > File = MakeShareable(new FXmlFile(FileTemplate, EConstructMethod::ConstructFromBuffer));
 	auto Root = File->GetRootNode();
 
+	AppendChildCDATA(Root, TEXT("docs_name"), DocsTitle);
 	AppendChildCDATA(Root, TEXT("id"), GetClassDocId(Class));
 	AppendChildCDATA(Root, TEXT("display_name"), FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 	AppendChild(Root, TEXT("nodes"));
@@ -321,6 +329,11 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 	FXmlFile File(FileTemplate, EConstructMethod::ConstructFromBuffer);
 	auto Root = File.GetRootNode();
 	
+	AppendChildCDATA(Root, TEXT("docs_name"), DocsTitle);
+	// Since we pull these from the class xml file, the entries are already CDATA wrapped
+	AppendChildRaw(Root, TEXT("class_id"), State.ClassDocXml->GetRootNode()->FindChildNode(TEXT("id"))->GetContent());//GetClassDocId(Class));
+	AppendChildRaw(Root, TEXT("class_name"), State.ClassDocXml->GetRootNode()->FindChildNode(TEXT("display_name"))->GetContent());// FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
+
 	AppendChildCDATA(Root, TEXT("shorttitle"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
 
 	FString NodeFullTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();

@@ -9,10 +9,10 @@
 /*
 Module implementation
 */
-class FGraphNodeImagerModule : public FDefaultGameModuleImpl
+class FKantanDocGenModule : public FDefaultGameModuleImpl
 {
 public:
-	FGraphNodeImagerModule()
+	FKantanDocGenModule()
 	{}
 
 public:

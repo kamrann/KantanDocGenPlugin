@@ -1,6 +1,6 @@
 // Copyright (C) 2016 Cameron Angus. All Rights Reserved.
 
-#include "GraphNodeImager.h"
+#include "KantanDocGenPCH.h"
 #include "NativeModuleEnumerator.h"
 
 
@@ -29,7 +29,7 @@ void FNativeModuleEnumerator::Prepass(FName const& ModuleName)
 	}
 	if(Package == nullptr)
 	{
-		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to find specified package '%s', skipping."), *PkgName);
+		UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to find specified package '%s', skipping."), *PkgName);
 		return;
 	}
 
@@ -58,7 +58,7 @@ void FNativeModuleEnumerator::Prepass(FName const& ModuleName)
 
 		if(ObjectToProcess && !Processed.Contains(ObjectToProcess))
 		{
-			UE_LOG(LogGraphNodeImager, Log, TEXT("Enumerating object '%s' in package '%s'"), *ObjectToProcess->GetName(), *PkgName);
+			UE_LOG(LogKantanDocGen, Log, TEXT("Enumerating object '%s' in package '%s'"), *ObjectToProcess->GetName(), *PkgName);
 
 			// Store this class
 			ObjectList.Add(ObjectToProcess);

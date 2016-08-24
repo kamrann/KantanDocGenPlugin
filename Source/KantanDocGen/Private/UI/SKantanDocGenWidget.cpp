@@ -1,12 +1,12 @@
 // Copyright (C) 2016 Cameron Angus. All Rights Reserved.
 
-#include "GraphNodeImager.h"
+#include "KantanDocGenPCH.h"
 #include "SKantanDocGenWidget.h"
 #include "DocGenSettings.h"
 #include "PropertyEditorModule.h"
 #include "IDetailsView.h"
 #include "DocGenSettings.h"
-#include "GraphNodeImagerModule.h"
+#include "KantanDocGenModule.h"
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"
 
@@ -78,7 +78,7 @@ bool SKantanDocGenWidget::ValidateSettingsForGeneration() const
 
 FReply SKantanDocGenWidget::OnGenerateDocs()
 {
-	auto& Module = FModuleManager::LoadModuleChecked< FGraphNodeImagerModule >(TEXT("GraphNodeImager"));
+	auto& Module = FModuleManager::LoadModuleChecked< FKantanDocGenModule >(TEXT("KantanDocGen"));
 	Module.GenerateDocs(UKantanDocGenSettingsObject::Get()->Settings);
 
 	TSharedRef< SWindow > ParentWindow = FSlateApplication::Get().FindWidgetWindow(AsShared()).ToSharedRef();

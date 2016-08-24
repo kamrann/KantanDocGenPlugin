@@ -3,9 +3,9 @@
 using UnrealBuildTool;
 using System.IO;
 
-public class GraphNodeImager : ModuleRules
+public class KantanDocGen : ModuleRules
 {
-	public GraphNodeImager(TargetInfo Target)
+	public KantanDocGen(TargetInfo Target)
 	{
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Private"));
 

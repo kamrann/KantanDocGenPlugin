@@ -1,6 +1,6 @@
 // Copyright (C) 2016 Cameron Angus. All Rights Reserved.
 
-#include "GraphNodeImager.h"
+#include "KantanDocGenPCH.h"
 #include "KantanDocsCommandlet.h"
 #include "NodeDocsGenerator.h"
 
@@ -48,7 +48,7 @@ KantanDocsCommandletUtils::CommandletOptions::CommandletOptions(TArray<FString> 
 			}
 			else
 			{
-				UE_LOG(LogGraphNodeImager, Error, TEXT("Unrecognized class '%s', defaulting to 'Actor'"), *ClassName);
+				UE_LOG(LogKantanDocGen, Error, TEXT("Unrecognized class '%s', defaulting to 'Actor'"), *ClassName);
 			}
 		}
 		else if(Switch.StartsWith("path="))

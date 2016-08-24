@@ -5,13 +5,13 @@
 #include "Editor/EditorStyle/Public/EditorStyleSet.h"
 
 
-class FGraphNodeImagerCommands : public TCommands< FGraphNodeImagerCommands >
+class FKantanDocGenCommands : public TCommands< FKantanDocGenCommands >
 {
 public:
-	FGraphNodeImagerCommands() : TCommands< FGraphNodeImagerCommands >
+	FKantanDocGenCommands() : TCommands< FKantanDocGenCommands >
 	(
-		"GraphNodeImager", // Context name for fast lookup
-		NSLOCTEXT("Contexts", "GraphNodeImager", "Graph Node Imager"), // Localized context name for displaying
+		"KantanDocGen", // Context name for fast lookup
+		NSLOCTEXT("Contexts", "KantanDocGen", "Kantan Doc Gen"), // Localized context name for displaying
 		NAME_None, // Parent
 		FEditorStyle::GetStyleSetName() // Icon Style Set
 	)

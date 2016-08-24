@@ -19,7 +19,7 @@ public:
 	{
 		TSharedPtr< FXmlFile > ClassDocXml;
 		FString ClassDocsPath;
-		FString RelImageBasePath;	// = TEXT("img");
+		FString RelImageBasePath;
 		FString ImageFilename;
 
 		FNodeProcessingState():
@@ -32,17 +32,15 @@ public:
 
 public:
 	/** Callable only from game thread */
-	bool GT_Init(FString const& DocsTitle, FString const& InOutputDir, UClass* BlueprintContextClass = AActor::StaticClass());
+	bool GT_Init(FString const& InDocsTitle, FString const& InOutputDir, UClass* BlueprintContextClass = AActor::StaticClass());
 	UK2Node* GT_InitializeForSpawner(UBlueprintNodeSpawner* Spawner, UObject* SourceObject, FNodeProcessingState& OutState);
 	bool GT_Finalize(FString OutputPath);
 	/**/
 
 	/** Callable from background thread */
-	bool GenerateNodeImage(class UEdGraphNode* Node, /* FString const& ImagePath, FString& OutFilename,*/ FNodeProcessingState& State);
-	bool GenerateNodeDocs(class UK2Node* Node, /* FString const& NodeDocsPath, FString const& RelImagePath,*/ FNodeProcessingState& State);
+	bool GenerateNodeImage(class UEdGraphNode* Node, FNodeProcessingState& State);
+	bool GenerateNodeDocs(class UK2Node* Node, FNodeProcessingState& State);
 	/**/
-
-	//	int32 ProcessSourceObject(UObject* Object, FString OutputPath);
 
 protected:
 	void CleanUp();
@@ -64,6 +62,7 @@ protected:
 	class UEdGraph* Graph;
 	TSharedPtr< class SGraphPanel > GraphPanel;
 
+	FString DocsTitle;
 	TSharedPtr< FXmlFile > IndexXml;
 	TMap< TWeakObjectPtr< UClass >, TSharedPtr< FXmlFile > > ClassDocsMap;
 

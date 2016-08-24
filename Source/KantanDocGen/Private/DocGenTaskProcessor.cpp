@@ -1,6 +1,6 @@
 // Copyright (C) 2016 Cameron Angus. All Rights Reserved.
 
-#include "GraphNodeImager.h"
+#include "KantanDocGenPCH.h"
 #include "DocGenTaskProcessor.h"
 #include "NodeDocsGenerator.h"
 #include "BlueprintActionDatabase.h"
@@ -15,7 +15,7 @@
 #include "ThreadingHelpers.h"
 
 
-#define LOCTEXT_NAMESPACE "GraphNodeImager"
+#define LOCTEXT_NAMESPACE "KantanDocGen"
 
 
 FDocGenTaskProcessor::FDocGenTaskProcessor()
@@ -130,7 +130,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 		// We've just come in from another thread, check the source object is still around
 		if(!Current->SourceObject.IsValid())
 		{
-			UE_LOG(LogGraphNodeImager, Warning, TEXT("Object being enumerated expired!"));
+			UE_LOG(LogKantanDocGen, Warning, TEXT("Object being enumerated expired!"));
 			return nullptr;
 		}
 
@@ -180,7 +180,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 
 	if(!DocGenThreads::RunOnGameThreadRetVal(GameThread_InitDocGen, Current->Task->Settings.DocumentationTitle, IntermediateDir))
 	{
-		UE_LOG(LogGraphNodeImager, Error, TEXT("Failed to initialize doc generator!"));
+		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to initialize doc generator!"));
 		return;
 	}
 
@@ -214,14 +214,14 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 				// Generate image
 				if(!Current->DocGen->GenerateNodeImage(NodeInst, NodeState))
 				{
-					UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to generate node image!"))
+					UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to generate node image!"))
 					continue;
 				}
 
 				// Generate doc
 				if(!Current->DocGen->GenerateNodeDocs(NodeInst, NodeState))
 				{
-					UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to generate node doc xml!"))
+					UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to generate node doc xml!"))
 					continue;
 				}
 			}
@@ -231,7 +231,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	// Game thread: DocGen.GT_Finalize()
 	if(!DocGenThreads::RunOnGameThreadRetVal(GameThread_FinalizeDocs, IntermediateDir))
 	{
-		UE_LOG(LogGraphNodeImager, Warning, TEXT("Failed to finalize xml docs!"));
+		UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to finalize xml docs!"));
 
 		Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Dog gen failed"));
 		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
@@ -252,7 +252,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	FString HyperlinkTarget = TEXT("file://") / FPaths::ConvertRelativePathToFull(Current->Task->Settings.OutputDirectory.Path / Current->Task->Settings.DocumentationTitle / TEXT("index.html"));
 	auto OnHyperlinkClicked = [HyperlinkTarget]
 	{
-		UE_LOG(LogGraphNodeImager, Log, TEXT("Invoking hyperlink"));
+		UE_LOG(LogKantanDocGen, Log, TEXT("Invoking hyperlink"));
 		FPlatformProcess::LaunchURL(*HyperlinkTarget, nullptr, nullptr);
 	};
 
@@ -322,7 +322,7 @@ bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDi
 				FString Line = BufferedText.Left(EndOfLineIdx);
 				Line.RemoveFromEnd(TEXT("\r"));
 
-				UE_LOG(LogGraphNodeImager, Log, TEXT("[KantanDocGen] %s"), *Line);
+				UE_LOG(LogKantanDocGen, Log, TEXT("[KantanDocGen] %s"), *Line);
 
 				BufferedText = BufferedText.Mid(EndOfLineIdx + 1);
 			}
@@ -337,7 +337,7 @@ bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDi
 
 		if(ReturnCode != 0)
 		{
-			UE_LOG(LogGraphNodeImager, Error, TEXT("KantanDocGen tool failed, see above output."));
+			UE_LOG(LogKantanDocGen, Error, TEXT("KantanDocGen tool failed, see above output."));
 			bSuccess = false;
 		}
 	}

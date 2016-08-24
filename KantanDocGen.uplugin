@@ -1,8 +1,8 @@
 {
 	"FileVersion" : 3,
 	
-	"FriendlyName" : "Graph Node Imager",
-	"Description" : "Plugin allowing exporting of rendered images of editor graph nodes.",
+	"FriendlyName" : "Kantan Doc Gen",
+	"Description" : "Plugin providing automatic documentation generation for both blueprint functions and C++ functions exposed to blueprint.",
 	"Version" : 1,
 	"VersionName" : "1.0",
 	"CreatedBy" : "Kantan Dev",
@@ -17,7 +17,7 @@
 	"Modules" :
 	[
 	{
-		"Name": "GraphNodeImager",
+		"Name": "KantanDocGen",
 		"Type": "Editor"
 	}
 	]

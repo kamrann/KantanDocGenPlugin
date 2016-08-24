@@ -10,4 +10,4 @@
 #include "K2Node.h"
 
 
-DECLARE_LOG_CATEGORY_EXTERN(LogGraphNodeImager, Log, All);
+DECLARE_LOG_CATEGORY_EXTERN(LogKantanDocGen, Log, All);

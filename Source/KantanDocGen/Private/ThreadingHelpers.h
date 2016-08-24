@@ -24,7 +24,6 @@ namespace DocGenThreads
 		auto NullaryFunc = [&]
 		{
 			Result = Func(Args...);
-				//std::forward< TArgs >(Args)...);
 		};
 
 		FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(NullaryFunc, TStatId(), nullptr, ENamedThreads::GameThread);

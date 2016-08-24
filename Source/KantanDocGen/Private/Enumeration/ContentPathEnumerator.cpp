@@ -1,6 +1,6 @@
 // Copyright (C) 2016 Cameron Angus. All Rights Reserved.
 
-#include "GraphNodeImager.h"
+#include "KantanDocGenPCH.h"
 #include "ContentPathEnumerator.h"
 #include "AssetRegistryModule.h"
 
@@ -39,7 +39,7 @@ UObject* FContentPathEnumerator::GetNext()
 
 		if(auto Blueprint = Cast< UBlueprint >(AssetData.GetAsset()))
 		{
-			UE_LOG(LogGraphNodeImager, Log, TEXT("Enumerating object '%s' at '%s'"), *Blueprint->GetName(), *AssetData.ObjectPath.ToString());
+			UE_LOG(LogKantanDocGen, Log, TEXT("Enumerating object '%s' at '%s'"), *Blueprint->GetName(), *AssetData.ObjectPath.ToString());
 
 			Result = Blueprint;
 			break;
