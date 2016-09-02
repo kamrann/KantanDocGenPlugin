@@ -13,6 +13,7 @@
 #include "SNotificationList.h"
 #include "NotificationManager.h"
 #include "ThreadingHelpers.h"
+#include "IPluginManager.h"
 
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"
@@ -272,9 +273,17 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 
 bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput)
 {
-	const FString DotNETBinariesDir = FPaths::EngineDir() / TEXT("Binaries/DotNET");
-	const FString DocGenExeName = TEXT("KantanDocGen.exe");
-	const FString DocGenPath = DotNETBinariesDir / DocGenExeName;
+	auto& PluginManager = IPluginManager::Get();
+	auto Plugin = PluginManager.FindPlugin(TEXT("KantanDocGen"));
+	if(!Plugin.IsValid())
+	{
+		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to locate plugin info"));
+		return false;
+	}
+
+	const FString DocGenToolBinPath = Plugin->GetBaseDir() / TEXT("ThirdParty") / TEXT("KantanDocGenTool") / TEXT("bin");
+	const FString DocGenToolExeName = TEXT("KantanDocGen.exe");
+	const FString DocGenToolPath = DocGenToolBinPath / DocGenToolExeName;
 
 	// Create a read and write pipe for the child process
 	void* PipeRead = nullptr;
@@ -288,7 +297,7 @@ bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDi
 		+ (bCleanOutput ? TEXT(" -cleanoutput") : TEXT(""))
 		;
 	FProcHandle Proc = FPlatformProcess::CreateProc(
-		*DocGenPath,
+		*DocGenToolPath,
 		*Args,
 		true,
 		false,

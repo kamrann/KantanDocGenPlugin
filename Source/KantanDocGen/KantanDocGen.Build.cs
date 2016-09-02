@@ -33,6 +33,7 @@ public class KantanDocGen : ModuleRules
 				"LevelEditor",
 				"XmlParser",
 				"UMG",
+				"Projects",
             }
         );
 	}
