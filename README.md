@@ -8,14 +8,15 @@ For functions in blueprints, select a function and fill in the Description box i
 
 For C++ UFUNCTIONS, use the following comment format above the UFUNCTION() macro. Note that only the function will need to be blueprint exposed in some way to be documented - generally BlueprintCallable, BlueprintPure, BlueprintImplementableEvent or BlueprintNativeEvent.
 
-```/**
-	* Function description goes here.
-	* You can use multiple lines.
-	*
-	* @param ParamX Description of parameter ParamX.
-	* @param ParamY Description of parameter ParamY.
-	* @return Description of function return value.
-	*/
+```
+/**
+* Function description goes here.
+* You can use multiple lines.
+*
+* @param ParamX Description of parameter ParamX.
+* @param ParamY Description of parameter ParamY.
+* @return Description of function return value.
+*/
 UFUNCTION(BlueprintCallable, ...)
 int32 SomeFunction(FString ParamX, bool ParamY);
 ```
