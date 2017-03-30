@@ -409,20 +409,20 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 	return true;
 }
 
-bool FNodeDocsGenerator::SaveIndexXml(FString const& OutputDir)
+bool FNodeDocsGenerator::SaveIndexXml(FString const& OutDir)
 {
-	auto Path = OutputDir / TEXT("index.xml");
+	auto Path = OutDir / TEXT("index.xml");
 	IndexXml->Save(Path);
 
 	return true;
 }
 
-bool FNodeDocsGenerator::SaveClassDocXml(FString const& OutputDir)
+bool FNodeDocsGenerator::SaveClassDocXml(FString const& OutDir)
 {
 	for(auto const& Entry : ClassDocsMap)
 	{
 		auto ClassId = GetClassDocId(Entry.Key.Get());
-		auto Path = OutputDir / ClassId / (ClassId + TEXT(".xml"));
+		auto Path = OutDir / ClassId / (ClassId + TEXT(".xml"));
 		Entry.Value->Save(Path);
 	}
 

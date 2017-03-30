@@ -52,8 +52,8 @@ protected:
 	TSharedPtr< FXmlFile > InitClassDocXml(UClass* Class);
 	bool UpdateIndexDocWithClass(FXmlFile* DocFile, UClass* Class);
 	bool UpdateClassDocWithNode(FXmlFile* DocFile, UEdGraphNode* Node);
-	bool SaveIndexXml(FString const& OutputDir);
-	bool SaveClassDocXml(FString const& OutputDir);
+	bool SaveIndexXml(FString const& OutDir);
+	bool SaveClassDocXml(FString const& OutDir);
 
 	static void AdjustNodeForSnapshot(UEdGraphNode* Node);
 	static FString GetClassDocId(UClass* Class);
