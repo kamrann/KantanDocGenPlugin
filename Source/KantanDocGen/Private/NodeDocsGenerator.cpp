@@ -2,12 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Copyright (C) 2016 Cameron Angus. All Rights Reserved.
+// Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
 #pragma once
 
-#include "KantanDocGenPCH.h"
 #include "NodeDocsGenerator.h"
+#include "KantanDocGenLog.h"
 #include "SGraphNode.h"
 #include "Editor/GraphEditor/Private/NodeFactory.h"
 #include "Editor/GraphEditor/Private/SGraphPanel.h"
@@ -23,7 +23,10 @@
 #include "HighResScreenshot.h"
 #include "XmlFile.h"
 #include "Slate/WidgetRenderer.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "TextureResource.h"
 #include "ThreadingHelpers.h"
+#include "Stats/StatsMisc.h"
 
 
 FNodeDocsGenerator::~FNodeDocsGenerator()

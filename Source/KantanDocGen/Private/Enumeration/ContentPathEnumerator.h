@@ -2,11 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Copyright (C) 2016 Cameron Angus. All Rights Reserved.
+// Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
 #pragma once
 
 #include "ISourceObjectEnumerator.h"
+#include "AssetData.h"
 
 
 class FContentPathEnumerator: public ISourceObjectEnumerator

@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Copyright (C) 2016 Cameron Angus. All Rights Reserved.
+// Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
-#include "KantanDocGenPCH.h"
 #include "DocGenTaskProcessor.h"
+#include "KantanDocGenLog.h"
 #include "NodeDocsGenerator.h"
 #include "BlueprintActionDatabase.h"
 #include "BlueprintNodeSpawner.h"
+#include "K2Node.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Enumeration/ISourceObjectEnumerator.h"
 #include "Enumeration/NativeModuleEnumerator.h"
@@ -18,6 +19,8 @@
 #include "NotificationManager.h"
 #include "ThreadingHelpers.h"
 #include "IPluginManager.h"
+#include "HAL/FileManager.h"
+#include "HAL/PlatformProcess.h"
 
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"

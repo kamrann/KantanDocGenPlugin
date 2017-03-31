@@ -2,15 +2,18 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Copyright (C) 2016 Cameron Angus. All Rights Reserved.
+// Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
-#include "KantanDocGenPCH.h"
 #include "SKantanDocGenWidget.h"
 #include "DocGenSettings.h"
-#include "PropertyEditorModule.h"
-#include "IDetailsView.h"
 #include "DocGenSettings.h"
 #include "KantanDocGenModule.h"
+
+#include "PropertyEditorModule.h"
+#include "IDetailsView.h"
+#include "SBoxPanel.h"
+#include "SButton.h"
+#include "SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"
 

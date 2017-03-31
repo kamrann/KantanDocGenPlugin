@@ -2,13 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Copyright (C) 2016 Cameron Angus. All Rights Reserved.
+// Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
 #pragma once
 
 #include "ModuleManager.h"
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
 
 
+class UClass;
+class UBlueprint;
+class UEdGraph;
+class UEdGraphNode;
+class UK2Node;
+class UBlueprintNodeSpawner;
 class FXmlFile;
 
 class FNodeDocsGenerator
@@ -42,8 +50,8 @@ public:
 	/**/
 
 	/** Callable from background thread */
-	bool GenerateNodeImage(class UEdGraphNode* Node, FNodeProcessingState& State);
-	bool GenerateNodeDocs(class UK2Node* Node, FNodeProcessingState& State);
+	bool GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingState& State);
+	bool GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& State);
 	/**/
 
 protected:
@@ -62,8 +70,8 @@ protected:
 	static bool IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner, bool bIsBlueprint);
 
 protected:
-	class UBlueprint* DummyBP;
-	class UEdGraph* Graph;
+	UBlueprint* DummyBP;
+	UEdGraph* Graph;
 	TSharedPtr< class SGraphPanel > GraphPanel;
 
 	FString DocsTitle;

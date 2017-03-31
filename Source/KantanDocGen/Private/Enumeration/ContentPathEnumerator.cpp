@@ -2,11 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-// Copyright (C) 2016 Cameron Angus. All Rights Reserved.
+// Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
-#include "KantanDocGenPCH.h"
 #include "ContentPathEnumerator.h"
+#include "KantanDocGenLog.h"
 #include "AssetRegistryModule.h"
+#include "ARFilter.h"
+#include "Engine/Blueprint.h"
 
 
 FContentPathEnumerator::FContentPathEnumerator(
