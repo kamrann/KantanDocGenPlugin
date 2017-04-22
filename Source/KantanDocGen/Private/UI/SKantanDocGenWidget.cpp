@@ -58,7 +58,8 @@ void SKantanDocGenWidget::Construct(const SKantanDocGenWidget::FArguments& InArg
 			]
 		];
 
-	DetailView->SetObject(UKantanDocGenSettingsObject::Get());
+	auto Settings = UKantanDocGenSettingsObject::Get();
+	DetailView->SetObject(Settings);
 }
 
 bool SKantanDocGenWidget::ValidateSettingsForGeneration() const

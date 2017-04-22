@@ -20,6 +20,8 @@
 #include "BlueprintBoundNodeSpawner.h"
 #include "BlueprintComponentNodeSpawner.h"
 #include "BlueprintEventNodeSpawner.h"
+#include "Classes/K2Node_DynamicCast.h"
+#include "Classes/K2Node_Message.h"
 #include "HighResScreenshot.h"
 #include "XmlFile.h"
 #include "Slate/WidgetRenderer.h"
@@ -341,13 +343,14 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 	AppendChildRaw(Root, TEXT("class_id"), State.ClassDocXml->GetRootNode()->FindChildNode(TEXT("id"))->GetContent());//GetClassDocId(Class));
 	AppendChildRaw(Root, TEXT("class_name"), State.ClassDocXml->GetRootNode()->FindChildNode(TEXT("display_name"))->GetContent());// FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 
-	AppendChildCDATA(Root, TEXT("shorttitle"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
+	FString NodeShortTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
+	AppendChildCDATA(Root, TEXT("shorttitle"), NodeShortTitle.TrimTrailing());
 
 	FString NodeFullTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
 	auto TargetIdx = NodeFullTitle.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
 	if(TargetIdx != INDEX_NONE)
 	{
-		NodeFullTitle = NodeFullTitle.Left(TargetIdx);
+		NodeFullTitle = NodeFullTitle.Left(TargetIdx).TrimTrailing();
 	}
 	AppendChildCDATA(Root, TEXT("fulltitle"), NodeFullTitle);
 
@@ -355,7 +358,7 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 	TargetIdx = NodeDesc.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
 	if(TargetIdx != INDEX_NONE)
 	{
-		NodeDesc = NodeDesc.Left(TargetIdx);
+		NodeDesc = NodeDesc.Left(TargetIdx).TrimTrailing();
 	}
 	AppendChildCDATA(Root, TEXT("description"), NodeDesc);
 	AppendChildCDATA(Root, TEXT("imgpath"), State.RelImageBasePath / State.ImageFilename);
@@ -511,12 +514,15 @@ bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner, b
 	// Spawners for nodes of these types (or their subclasses) will be excluded
 	static const TSubclassOf< UK2Node > ExcludedNodeClasses[] = {
 		UK2Node_DynamicCast::StaticClass(),
+		UK2Node_Message::StaticClass(),
 	};
 
 	// Function spawners for functions with any of the following metadata tags will also be excluded
 	static const FName ExcludedFunctionMeta[] = {
 		TEXT("BlueprintAutocast")
 	};
+
+	static const uint32 PermittedAccessSpecifiers = (FUNC_Public | FUNC_Protected);
 
 
 	for(auto ExclSpawnerClass : ExcludedSpawnerClasses)
@@ -550,7 +556,14 @@ bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner, b
 	{
 		for(auto const& Meta : ExcludedFunctionMeta)
 		{
-			if(FuncSpawner->GetFunction()->HasMetaData(Meta))
+			auto Func = FuncSpawner->GetFunction();
+
+			if(Func->HasMetaData(Meta))
+			{
+				return false;
+			}
+
+			if((Func->FunctionFlags & PermittedAccessSpecifiers) == 0)
 			{
 				return false;
 			}

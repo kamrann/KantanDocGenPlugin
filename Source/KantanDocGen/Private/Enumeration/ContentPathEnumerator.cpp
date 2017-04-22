@@ -9,6 +9,7 @@
 #include "AssetRegistryModule.h"
 #include "ARFilter.h"
 #include "Engine/Blueprint.h"
+#include "Animation/AnimBlueprint.h"
 
 
 FContentPathEnumerator::FContentPathEnumerator(
@@ -28,7 +29,9 @@ void FContentPathEnumerator::Prepass(FName const& Path)
 	FARFilter Filter;
 	Filter.bRecursiveClasses = true;
 	Filter.ClassNames.Add(UBlueprint::StaticClass()->GetFName());
-	//Filter.RecursiveClassesExclusionSet.Add();
+	
+	// @TODO: Not sure about this, but for some reason was generating docs for 'AnimInstance' itself.
+	Filter.RecursiveClassesExclusionSet.Add(UAnimBlueprint::StaticClass()->GetFName());
 
 	AssetRegistry.GetAssetsByPath(Path, AssetList, true);
 	AssetRegistry.RunAssetsThroughFilter(AssetList, Filter);

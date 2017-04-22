@@ -11,6 +11,7 @@
 #include "ObjectMacros.h"
 #include "GameFramework/Actor.h"
 #include "Misc/Paths.h"
+#include "Misc/App.h"
 #include "DocGenSettings.generated.h"
 
 
@@ -24,19 +25,19 @@ public:
 	FString DocumentationTitle;
 		
 	/** List of C++ modules in which to search for blueprint-exposed classes to document. */
-	UPROPERTY(EditAnywhere, Category = "Class Search")
+	UPROPERTY(EditAnywhere, Category = "Class Search", Meta = (Tooltip = "Raw module names (Do not prefix with '/Script')."))
 	TArray< FName > NativeModules;
 
 	/** List of paths in which to search for blueprints to document. */
-	UPROPERTY(EditAnywhere, Category = "Class Search")
+	UPROPERTY(EditAnywhere, Category = "Class Search", Meta = (Tooltip = "Path to content subfolder, e.g. '/Game/MyFolder' or '/PluginName/MyFolder'."))
 	TArray< FName > ContentPaths;
 
 	/** Names of specific classes/blueprints to document. */
-	UPROPERTY(EditAnywhere, Category = "Class Search")
+	UPROPERTY()//EditAnywhere, Category = "Class Search")
 	TArray< FName > SpecificClasses;
 
 	/** Names of specific classes/blueprints to exclude. */
-	UPROPERTY(EditAnywhere, Category = "Class Search")
+	UPROPERTY()//EditAnywhere, Category = "Class Search")
 	TArray< FName > ExcludedClasses;
 
 	UPROPERTY(EditAnywhere, Category = "Output")
@@ -89,6 +90,11 @@ public:
 
 	static void InitDefaults(UKantanDocGenSettingsObject* CDO)
 	{
+		if(CDO->Settings.DocumentationTitle.IsEmpty())
+		{
+			CDO->Settings.DocumentationTitle = FApp::GetGameName();
+		}
+
 		if(CDO->Settings.OutputDirectory.Path.IsEmpty())
 		{
 			CDO->Settings.OutputDirectory.Path = FPaths::GameSavedDir() / TEXT("KantanDocGen");

@@ -241,7 +241,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	{
 		UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to finalize xml docs!"));
 
-		Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Dog gen failed"));
+		Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Doc gen failed"));
 		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
 		Current->Task->Notification->ExpireAndFadeout();
 		//GEditor->PlayEditorSound(CompileSuccessSound);
@@ -267,7 +267,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	auto HyperlinkText = TAttribute< FText >::Create(TAttribute< FText >::FGetter::CreateLambda([] { return LOCTEXT("GeneratedDocsHyperlink", "View docs"); }));
 		// @TODO: Bug in SNotificationItemImpl::SetHyperlink, ignores non-delegate attributes... LOCTEXT("GeneratedDocsHyperlink", "View docs");
 
-	Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Dog gen completed"));
+	Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Doc gen completed"));
 	Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Success);
 	Current->Task->Notification->SetHyperlink(
 		FSimpleDelegate::CreateLambda(OnHyperlinkClicked),
