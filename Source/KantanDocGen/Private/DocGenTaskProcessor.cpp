@@ -179,9 +179,14 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 
 	FString IntermediateDir = FPaths::GameIntermediateDir() / TEXT("KantanDocGen") / Current->Task->Settings.DocumentationTitle;
 
-	// @TODO: Specific class enumerator
-	Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FNativeModuleEnumerator > >(new FCompositeEnumerator< FNativeModuleEnumerator >(Current->Task->Settings.NativeModules)));
-	Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FContentPathEnumerator > >(new FCompositeEnumerator< FContentPathEnumerator >(Current->Task->Settings.ContentPaths)));
+	auto GameThread_EnqueueEnumerators = [this]()
+	{
+		// @TODO: Specific class enumerator
+		Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FNativeModuleEnumerator > >(new FCompositeEnumerator< FNativeModuleEnumerator >(Current->Task->Settings.NativeModules)));
+		Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FContentPathEnumerator > >(new FCompositeEnumerator< FContentPathEnumerator >(Current->Task->Settings.ContentPaths)));
+	};
+
+	DocGenThreads::RunOnGameThread(GameThread_EnqueueEnumerators);	
 
 	// Initialize the doc generator
 	Current->DocGen = MakeUnique< FNodeDocsGenerator >();
