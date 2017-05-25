@@ -181,7 +181,15 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 
 	// @TODO: Specific class enumerator
 	Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FNativeModuleEnumerator > >(new FCompositeEnumerator< FNativeModuleEnumerator >(Current->Task->Settings.NativeModules)));
-	Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FContentPathEnumerator > >(new FCompositeEnumerator< FContentPathEnumerator >(Current->Task->Settings.ContentPaths)));
+	
+	//Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FContentPathEnumerator > >(new FCompositeEnumerator< FContentPathEnumerator >(Current->Task->Settings.ContentPaths)));
+	TArray< FName > ContentPackagePaths;
+	for(auto const& Path : Current->Task->Settings.ContentPaths)
+	{
+		ContentPackagePaths.AddUnique(FName(*Path.Path));
+			//*FPackageName::FilenameToLongPackageName(RawPath.Path)));
+	}
+	Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FContentPathEnumerator > >(new FCompositeEnumerator< FContentPathEnumerator >(ContentPackagePaths)));
 
 	// Initialize the doc generator
 	Current->DocGen = MakeUnique< FNodeDocsGenerator >();
@@ -192,6 +200,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 		return;
 	}
 
+	Current->Task->Notification->SetExpireDuration(2.0f);
 	Current->Task->Notification->SetText(LOCTEXT("DocGenInProgress", "Doc gen in progress"));
 
 	bool const bCleanIntermediate = true;
@@ -205,6 +214,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 		Current->Excluded.Add(Name);
 	}
 
+	int SuccessfulNodeCount = 0;
 	while(Current->Enumerators.Dequeue(Current->CurrentEnumerator))
 	{
 		while(DocGenThreads::RunOnGameThreadRetVal(GameThread_EnumerateNextObject))	// Game thread: Enumerate next Obj, get spawner list for Obj, store as array of weak ptrs.
@@ -232,16 +242,29 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 					UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to generate node doc xml!"))
 					continue;
 				}
+
+				++SuccessfulNodeCount;
 			}
 		}
+	}
+
+	if(SuccessfulNodeCount == 0)
+	{
+		UE_LOG(LogKantanDocGen, Error, TEXT("No nodes were found to document!"));
+
+		Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed - No nodes found"));
+		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
+		Current->Task->Notification->ExpireAndFadeout();
+		//GEditor->PlayEditorSound(CompileSuccessSound);
+		return;
 	}
 
 	// Game thread: DocGen.GT_Finalize()
 	if(!DocGenThreads::RunOnGameThreadRetVal(GameThread_FinalizeDocs, IntermediateDir))
 	{
-		UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to finalize xml docs!"));
+		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to finalize xml docs!"));
 
-		Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Doc gen failed"));
+		Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed"));
 		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
 		Current->Task->Notification->ExpireAndFadeout();
 		//GEditor->PlayEditorSound(CompileSuccessSound);
@@ -250,12 +273,25 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 
 	Current->Task->Notification->SetText(LOCTEXT("DocConversionInProgress", "Converting docs"));
 
-	ProcessIntermediateDocs(
+	auto TransformationResult = ProcessIntermediateDocs(
 		IntermediateDir,
 		Current->Task->Settings.OutputDirectory.Path,
 		Current->Task->Settings.DocumentationTitle,
 		Current->Task->Settings.bCleanOutputDirectory
 	);
+	if(TransformationResult != EIntermediateProcessingResult::Success)
+	{
+		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to transform xml to html!"));
+
+		auto Msg = FText::Format(LOCTEXT("DocConversionFailed", "Doc gen failed - {0}"),
+			TransformationResult == EIntermediateProcessingResult::DiskWriteFailure ? LOCTEXT("CouldNotWriteToOutput", "Could not write output, please clear output directory or enable 'Clean Output Directory' option") : LOCTEXT("GenericTransformationFailure", "Conversion failure")
+			);
+		Current->Task->Notification->SetText(Msg);
+		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
+		Current->Task->Notification->ExpireAndFadeout();
+		//GEditor->PlayEditorSound(CompileSuccessSound);
+		return;
+	}
 
 	FString HyperlinkTarget = TEXT("file://") / FPaths::ConvertRelativePathToFull(Current->Task->Settings.OutputDirectory.Path / Current->Task->Settings.DocumentationTitle / TEXT("index.html"));
 	auto OnHyperlinkClicked = [HyperlinkTarget]
@@ -278,14 +314,14 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	Current.Reset();
 }
 
-bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput)
+FDocGenTaskProcessor::EIntermediateProcessingResult FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput)
 {
 	auto& PluginManager = IPluginManager::Get();
 	auto Plugin = PluginManager.FindPlugin(TEXT("KantanDocGen"));
 	if(!Plugin.IsValid())
 	{
 		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to locate plugin info"));
-		return false;
+		return EIntermediateProcessingResult::UnknownError;
 	}
 
 	const FString DocGenToolBinPath = Plugin->GetBaseDir() / TEXT("ThirdParty") / TEXT("KantanDocGenTool") / TEXT("bin");
@@ -303,6 +339,7 @@ bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDi
 		+ TEXT(" -name=") + DocTitle
 		+ (bCleanOutput ? TEXT(" -cleanoutput") : TEXT(""))
 		;
+	UE_LOG(LogKantanDocGen, Log, TEXT("Invoking conversion tool: %s %s"), *DocGenToolPath, *Args);
 	FProcHandle Proc = FPlatformProcess::CreateProc(
 		*DocGenToolPath,
 		*Args,
@@ -315,10 +352,9 @@ bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDi
 		PipeWrite
 	);
 
-	bool bSuccess = true;
+	int32 ReturnCode = 0;
 	if(Proc.IsValid())
 	{
-		int32 ReturnCode = 0;
 		FString BufferedText;
 		for(bool bProcessFinished = false; !bProcessFinished; )
 		{
@@ -353,8 +389,7 @@ bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDi
 
 		if(ReturnCode != 0)
 		{
-			UE_LOG(LogKantanDocGen, Error, TEXT("KantanDocGen tool failed, see above output."));
-			bSuccess = false;
+			UE_LOG(LogKantanDocGen, Error, TEXT("KantanDocGen tool failed (code %i), see above output."), ReturnCode);
 		}
 	}
 
@@ -362,7 +397,17 @@ bool FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDi
 	FPlatformProcess::ClosePipe(0, PipeRead);
 	FPlatformProcess::ClosePipe(0, PipeWrite);
 
-	return bSuccess;
+	switch(ReturnCode)
+	{
+		case 0:
+		return EIntermediateProcessingResult::Success;
+		case -1:
+		return EIntermediateProcessingResult::UnknownError;
+		case -2:
+		return EIntermediateProcessingResult::DiskWriteFailure;
+		default:
+		return EIntermediateProcessingResult::SuccessWithErrors;
+	}
 }
 
 

@@ -23,7 +23,7 @@ FContentPathEnumerator::FContentPathEnumerator(
 
 void FContentPathEnumerator::Prepass(FName const& Path)
 {
-	auto& AssetRegistryModule = FModuleManager::LoadModuleChecked< FAssetRegistryModule >("AssetRegistry");
+	auto& AssetRegistryModule = FModuleManager::GetModuleChecked< FAssetRegistryModule >("AssetRegistry");
 	auto& AssetRegistry = AssetRegistryModule.Get();
 
 	FARFilter Filter;

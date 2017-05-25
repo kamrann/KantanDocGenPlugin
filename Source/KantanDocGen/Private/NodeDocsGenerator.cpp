@@ -47,18 +47,18 @@ bool FNodeDocsGenerator::GT_Init(FString const& InDocsTitle, FString const& InOu
 		UBlueprintGeneratedClass::StaticClass(),
 		NAME_None
 	));
-	if(!DummyBP)
+	if(!DummyBP.IsValid())
 	{
 		return false;
 	}
 
-	Graph = FBlueprintEditorUtils::CreateNewGraph(DummyBP, TEXT("TempoGraph"), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
+	Graph = FBlueprintEditorUtils::CreateNewGraph(DummyBP.Get(), TEXT("TempoGraph"), UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
 
 	DummyBP->AddToRoot();
 	Graph->AddToRoot();
 
 	GraphPanel = SNew(SGraphPanel)
-		.GraphObj(Graph)
+		.GraphObj(Graph.Get())
 		;
 	// We want full detail for rendering, passing a super-high zoom value will guarantee the highest LOD.
 	GraphPanel->RestoreViewSettings(FVector2D(0, 0), 10.0f);
@@ -81,7 +81,7 @@ UK2Node* FNodeDocsGenerator::GT_InitializeForSpawner(UBlueprintNodeSpawner* Spaw
 	}
 
 	// Spawn an instance into the graph
-	auto NodeInst = Spawner->Invoke(Graph, TSet< TWeakObjectPtr< UObject > >(), FVector2D(0, 0));
+	auto NodeInst = Spawner->Invoke(Graph.Get(), TSet< TWeakObjectPtr< UObject > >(), FVector2D(0, 0));
 
 	// Currently Blueprint nodes only
 	auto K2NodeInst = Cast< UK2Node >(NodeInst);
@@ -131,11 +131,16 @@ void FNodeDocsGenerator::CleanUp()
 		GraphPanel.Reset();
 	}
 
-	DummyBP->RemoveFromRoot();
-	Graph->RemoveFromRoot();
-
-	Graph = nullptr;
-	DummyBP = nullptr;
+	if(DummyBP.IsValid())
+	{
+		DummyBP->RemoveFromRoot();
+		DummyBP.Reset();
+	}
+	if(Graph.IsValid())
+	{
+		Graph->RemoveFromRoot();
+		Graph.Reset();
+	}
 }
 
 bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingState& State)
@@ -554,16 +559,18 @@ bool FNodeDocsGenerator::IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner, b
 
 	if(auto FuncSpawner = Cast< UBlueprintFunctionNodeSpawner >(Spawner))
 	{
+		auto Func = FuncSpawner->GetFunction();
+
+		// @NOTE: We exclude based on access level, but only if this is not a spawner for a blueprint event
+		// (custom events do not have any access specifiers)
+		if((Func->FunctionFlags & FUNC_BlueprintEvent) == 0 && (Func->FunctionFlags & PermittedAccessSpecifiers) == 0)
+		{
+			return false;
+		}
+
 		for(auto const& Meta : ExcludedFunctionMeta)
 		{
-			auto Func = FuncSpawner->GetFunction();
-
 			if(Func->HasMetaData(Meta))
-			{
-				return false;
-			}
-
-			if((Func->FunctionFlags & PermittedAccessSpecifiers) == 0)
 			{
 				return false;
 			}

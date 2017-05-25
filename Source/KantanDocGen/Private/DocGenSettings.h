@@ -29,8 +29,9 @@ public:
 	TArray< FName > NativeModules;
 
 	/** List of paths in which to search for blueprints to document. */
-	UPROPERTY(EditAnywhere, Category = "Class Search", Meta = (Tooltip = "Path to content subfolder, e.g. '/Game/MyFolder' or '/PluginName/MyFolder'."))
-	TArray< FName > ContentPaths;
+	UPROPERTY(EditAnywhere, Category = "Class Search", Meta = (ContentDir))//, Meta = (Tooltip = "Path to content subfolder, e.g. '/Game/MyFolder' or '/PluginName/MyFolder'."))
+	//TArray< FName > ContentPaths;
+	TArray< FDirectoryPath > ContentPaths;
 
 	/** Names of specific classes/blueprints to document. */
 	UPROPERTY()//EditAnywhere, Category = "Class Search")
@@ -46,7 +47,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Class Search", AdvancedDisplay)
 	TSubclassOf< UObject > BlueprintContextClass;
 
-	UPROPERTY(EditAnywhere, Category = "Output", AdvancedDisplay)
+	UPROPERTY(EditAnywhere, Category = "Output")
 	bool bCleanOutputDirectory;
 
 public:
@@ -107,7 +108,7 @@ public:
 	}
 
 public:
-	UPROPERTY(EditAnywhere, Category = "Kantan DocGen", Meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Config, Category = "Kantan DocGen", Meta = (ShowOnlyInnerProperties))
 	FKantanDocGenSettings Settings;
 };
 

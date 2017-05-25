@@ -65,7 +65,15 @@ protected:
 
 protected:
 	void ProcessTask(TSharedPtr< FDocGenTask > InTask);
-	bool ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput);
+
+	enum EIntermediateProcessingResult: uint8 {
+		Success,
+		SuccessWithErrors,
+		UnknownError,
+		DiskWriteFailure,
+	};
+
+	EIntermediateProcessingResult ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput);
 
 protected:
 	TQueue< TSharedPtr< FDocGenTask > > Waiting;

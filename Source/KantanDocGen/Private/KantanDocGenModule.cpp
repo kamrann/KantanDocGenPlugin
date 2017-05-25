@@ -122,6 +122,9 @@ void FKantanDocGenModule::ShowDocGenUI()
 	if(ParentWindow.IsValid())
 	{
 		FSlateApplication::Get().AddModalWindow(Window.ToSharedRef(), ParentWindow.ToSharedRef());
+
+		auto Settings = UKantanDocGenSettingsObject::Get();
+		Settings->SaveConfig();
 	}
 	else
 	{

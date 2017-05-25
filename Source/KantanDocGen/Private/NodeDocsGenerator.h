@@ -70,8 +70,8 @@ protected:
 	static bool IsSpawnerDocumentable(UBlueprintNodeSpawner* Spawner, bool bIsBlueprint);
 
 protected:
-	UBlueprint* DummyBP;
-	UEdGraph* Graph;
+	TWeakObjectPtr< UBlueprint > DummyBP;
+	TWeakObjectPtr< UEdGraph > Graph;
 	TSharedPtr< class SGraphPanel > GraphPanel;
 
 	FString DocsTitle;
