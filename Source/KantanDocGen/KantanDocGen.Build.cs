@@ -9,7 +9,7 @@ using System.IO;
 
 public class KantanDocGen : ModuleRules
 {
-	public KantanDocGen(ReadOnlyTargetRules Target): base(Target)
+	public KantanDocGen(TargetInfo Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		bEnforceIWYU = true;
