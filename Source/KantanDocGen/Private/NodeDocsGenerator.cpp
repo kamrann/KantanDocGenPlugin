@@ -10,7 +10,7 @@
 #include "KantanDocGenLog.h"
 #include "SGraphNode.h"
 #include "SGraphPanel.h"
-#include "Editor/GraphEditor/Private/NodeFactory.h"
+#include "NodeFactory.h"
 #include "EdGraphSchema_K2.h"
 #include "BlueprintEditorUtils.h"
 #include "KismetEditorUtilities.h"
