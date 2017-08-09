@@ -1,7 +1,7 @@
 {
 	"FileVersion" : 3,
 	"Version" : 2,
-	"VersionName" : "UE4.15-K2",
+	"VersionName" : "UE4.15-K3",
 	"FriendlyName" : "Kantan Doc Gen",
 	"Description" : "Plugin providing automatic documentation generation for both blueprint functions and C++ functions exposed to blueprint.",
 	"Category" : "Kantan Dev",
@@ -10,7 +10,6 @@
 	"DocsURL" : "",
 	"MarketplaceURL" : "",
 	"SupportURL" : "mailto:kantandev@gmail.com",
-	"EngineVersion" : "4.15.0",
 	"CanContainContent" : false,
 	"IsBetaVersion" : false,
 	"Installed" : false,

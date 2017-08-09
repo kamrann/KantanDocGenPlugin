@@ -235,3 +235,6 @@ Intermediate/
 DerivedDataCache/
 Saved/
 Packaged/
+!ThirdParty/KantanDocGenTool/bin
+!ThirdParty/KantanDocGenTool/bin/*.dll
+!ThirdParty/KantanDocGenTool/bin/*.exe
