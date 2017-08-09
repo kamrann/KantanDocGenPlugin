@@ -16,13 +16,6 @@ public class KantanDocGen : ModuleRules
 
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Private"));
 
-		// Super hacky - copied from EnvironmentQueryEditor module!
-		PrivateIncludePaths.AddRange(
-		   new string[] {
-				"Editor/GraphEditor/Private",
-		   }
-		   );
-
 		PublicDependencyModuleNames.AddRange(
             new string[] {
                 "Core",
