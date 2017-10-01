@@ -28,7 +28,7 @@ void SKantanDocGenWidget::Construct(const SKantanDocGenWidget::FArguments& InArg
 	DetailArgs.NameAreaSettings = FDetailsViewArgs::ComponentsAndActorsUseNameArea;
 	DetailArgs.bCustomNameAreaLocation = false;
 	DetailArgs.bCustomFilterAreaLocation = true;
-	DetailArgs.DefaultsOnlyVisibility = FDetailsViewArgs::EEditDefaultsOnlyNodeVisibility::Hide;
+	DetailArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Hide;
 
 	auto DetailView = PropertyEditorModule.CreateDetailView(DetailArgs);
 
