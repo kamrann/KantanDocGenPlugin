@@ -349,13 +349,13 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 	AppendChildRaw(Root, TEXT("class_name"), State.ClassDocXml->GetRootNode()->FindChildNode(TEXT("display_name"))->GetContent());// FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 
 	FString NodeShortTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
-	AppendChildCDATA(Root, TEXT("shorttitle"), NodeShortTitle.TrimEnd());
+	AppendChildCDATA(Root, TEXT("shorttitle"), NodeShortTitle.TrimTrailing());
 
 	FString NodeFullTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
 	auto TargetIdx = NodeFullTitle.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
 	if(TargetIdx != INDEX_NONE)
 	{
-		NodeFullTitle = NodeFullTitle.Left(TargetIdx).TrimEnd();
+		NodeFullTitle = NodeFullTitle.Left(TargetIdx).TrimTrailing();
 	}
 	AppendChildCDATA(Root, TEXT("fulltitle"), NodeFullTitle);
 
@@ -363,7 +363,7 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 	TargetIdx = NodeDesc.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
 	if(TargetIdx != INDEX_NONE)
 	{
-		NodeDesc = NodeDesc.Left(TargetIdx).TrimEnd();
+		NodeDesc = NodeDesc.Left(TargetIdx).TrimTrailing();
 	}
 	AppendChildCDATA(Root, TEXT("description"), NodeDesc);
 	AppendChildCDATA(Root, TEXT("imgpath"), State.RelImageBasePath / State.ImageFilename);

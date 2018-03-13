@@ -93,12 +93,12 @@ public:
 	{
 		if(CDO->Settings.DocumentationTitle.IsEmpty())
 		{
-			CDO->Settings.DocumentationTitle = FApp::GetProjectName();
+			CDO->Settings.DocumentationTitle = FApp::GetGameName();
 		}
 
 		if(CDO->Settings.OutputDirectory.Path.IsEmpty())
 		{
-			CDO->Settings.OutputDirectory.Path = FPaths::ProjectSavedDir() / TEXT("KantanDocGen");
+			CDO->Settings.OutputDirectory.Path = FPaths::GameSavedDir() / TEXT("KantanDocGen");
 		}
 
 		if(CDO->Settings.BlueprintContextClass == nullptr)

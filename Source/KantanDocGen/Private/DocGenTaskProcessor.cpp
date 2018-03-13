@@ -190,7 +190,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	Current = MakeUnique< FDocGenCurrentTask >();
 	Current->Task = InTask;
 
-	FString IntermediateDir = FPaths::ProjectIntermediateDir() / TEXT("KantanDocGen") / Current->Task->Settings.DocumentationTitle;
+	FString IntermediateDir = FPaths::GameIntermediateDir() / TEXT("KantanDocGen") / Current->Task->Settings.DocumentationTitle;
 
 	DocGenThreads::RunOnGameThread(GameThread_EnqueueEnumerators);	
 
