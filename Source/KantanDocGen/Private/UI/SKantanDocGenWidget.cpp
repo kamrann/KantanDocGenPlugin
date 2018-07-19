@@ -11,9 +11,9 @@
 
 #include "PropertyEditorModule.h"
 #include "IDetailsView.h"
-#include "SBoxPanel.h"
-#include "SButton.h"
-#include "SlateApplication.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Input/SButton.h"
+#include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"
 

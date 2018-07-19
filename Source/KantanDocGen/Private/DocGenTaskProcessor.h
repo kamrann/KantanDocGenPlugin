@@ -10,7 +10,7 @@
 
 #include "HAL/Runnable.h"
 #include "HAL/ThreadSafeBool.h"
-#include "WeakObjectPtrTemplates.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Containers/Queue.h"
 #include "CoreMinimal.h"
 

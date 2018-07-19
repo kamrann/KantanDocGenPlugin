@@ -11,11 +11,11 @@
 #include "DocGenTaskProcessor.h"
 #include "UI/SKantanDocGenWidget.h"
 
-#include "IConsoleManager.h"
-#include "IMainFrameModule.h"
+#include "HAL/IConsoleManager.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "LevelEditor.h"
-#include "MultiBoxBuilder.h"
-#include "SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Framework/Application/SlateApplication.h"
 #include "HAL/RunnableThread.h"
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"

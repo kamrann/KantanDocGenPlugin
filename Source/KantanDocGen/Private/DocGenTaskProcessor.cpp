@@ -15,10 +15,10 @@
 #include "Enumeration/NativeModuleEnumerator.h"
 #include "Enumeration/ContentPathEnumerator.h"
 #include "Enumeration/CompositeEnumerator.h"
-#include "SNotificationList.h"
-#include "NotificationManager.h"
+#include "Widgets/Notifications/SNotificationList.h"
+#include "Framework/Notifications/NotificationManager.h"
 #include "ThreadingHelpers.h"
-#include "IPluginManager.h"
+#include "Interfaces/IPluginManager.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformProcess.h"
 

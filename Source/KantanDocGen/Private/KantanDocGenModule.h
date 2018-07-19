@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include "ModuleManager.h"
+#include "Modules/ModuleManager.h"
 #include "DocGenTaskProcessor.h"	// TUniquePtr seems to need full definition...
 
 

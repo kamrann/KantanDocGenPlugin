@@ -6,8 +6,8 @@
 
 #pragma once
 
-#include "SCompoundWidget.h"
-#include "DeclarativeSyntaxSupport.h"
+#include "Widgets/SCompoundWidget.h"
+#include "Widgets/DeclarativeSyntaxSupport.h"
 
 
 class SKantanDocGenWidget : public SCompoundWidget
