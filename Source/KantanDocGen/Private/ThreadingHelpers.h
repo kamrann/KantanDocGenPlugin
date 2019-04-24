@@ -25,7 +25,7 @@ namespace DocGenThreads
 		typedef decltype(Func(Args...)) TResult;
 
 		TResult Result;
-		auto NullaryFunc = [&]
+		TFunction<void()> NullaryFunc = [&]
 		{
 			Result = Func(Args...);
 		};

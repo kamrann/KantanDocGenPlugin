@@ -29,7 +29,7 @@
 #include "TextureResource.h"
 #include "ThreadingHelpers.h"
 #include "Stats/StatsMisc.h"
-
+#include "Runtime/ImageWriteQueue/Public/ImageWriteTask.h"
 
 FNodeDocsGenerator::~FNodeDocsGenerator()
 {
@@ -156,9 +156,10 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 	FString NodeName = GetNodeDocId(Node);
 
 	FIntRect Rect;
-	TArray< FColor > Bitmap;
 
-	bSuccess = DocGenThreads::RunOnGameThreadRetVal([this, Node, DrawSize, &Rect, &Bitmap]
+	TUniquePtr<TImagePixelData<FColor>> PixelData;
+
+	bSuccess = DocGenThreads::RunOnGameThreadRetVal([this, Node, DrawSize, &Rect, &PixelData]
 	{
 		auto NodeWidget = FNodeFactory::CreateNodeWidget(Node);
 		NodeWidget->SetOwner(GraphPanel.ToSharedRef());
@@ -174,7 +175,10 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 		Rect = FIntRect(0, 0, (int32)Desired.X, (int32)Desired.Y);
 		FReadSurfaceDataFlags ReadPixelFlags(RCM_UNorm);
 		ReadPixelFlags.SetLinearToGamma(true); // @TODO: is this gamma correction, or something else?
-		if(RTResource->ReadPixels(Bitmap, ReadPixelFlags, Rect) == false)
+
+		PixelData = MakeUnique<TImagePixelData<FColor>>(FIntPoint((int32)Desired.X, (int32)Desired.Y));
+
+		if(RTResource->ReadPixels(PixelData->Pixels, ReadPixelFlags, Rect) == false)
 		{
 			UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to read pixels for node image."));
 			return false;
@@ -188,14 +192,20 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 		return false;
 	}
 
-	FHighResScreenshotConfig& HighResScreenshotConfig = GetHighResScreenshotConfig();
-	HighResScreenshotConfig.SetHDRCapture(false);
-
 	State.RelImageBasePath = TEXT("../img");
 	FString ImageBasePath = State.ClassDocsPath / TEXT("img");// State.RelImageBasePath;
 	FString ImgFilename = FString::Printf(TEXT("nd_img_%s.png"), *NodeName);
 	FString ScreenshotSaveName = ImageBasePath / ImgFilename;
-	if(HighResScreenshotConfig.SaveImage(ScreenshotSaveName, Bitmap, FIntPoint(Rect.Width(), Rect.Height())))
+
+	TUniquePtr<FImageWriteTask> ImageTask = MakeUnique<FImageWriteTask>();
+	ImageTask->PixelData = MoveTemp(PixelData);
+	ImageTask->Filename = ScreenshotSaveName;
+	ImageTask->Format = EImageFormat::PNG;
+	ImageTask->CompressionQuality = (int32)EImageCompressionQuality::Default;
+	ImageTask->bOverwriteFile = true;
+	ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColor>(255));
+	
+	if(ImageTask->RunTask())
 	{
 		// Success!
 		bSuccess = true;
