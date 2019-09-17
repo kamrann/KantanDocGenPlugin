@@ -94,7 +94,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 		return Current->DocGen->GT_Init(DocTitle, IntermediateDir, Current->Task->Settings.BlueprintContextClass);
 	};
 
-	auto GameThread_EnqueueEnumerators = [this]()
+	TFunction<void()> GameThread_EnqueueEnumerators = [this]()
 	{
 		// @TODO: Specific class enumerator
 		Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FNativeModuleEnumerator > >(new FCompositeEnumerator< FNativeModuleEnumerator >(Current->Task->Settings.NativeModules)));
