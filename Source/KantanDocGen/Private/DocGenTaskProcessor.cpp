@@ -91,6 +91,9 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	
 	auto GameThread_InitDocGen = [this](FString const& DocTitle, FString const& IntermediateDir) -> bool
 	{
+		Current->Task->Notification->SetExpireDuration(2.0f);
+		Current->Task->Notification->SetText(LOCTEXT("DocGenInProgress", "Doc gen in progress"));
+
 		return Current->DocGen->GT_Init(DocTitle, IntermediateDir, Current->Task->Settings.BlueprintContextClass);
 	};
 
@@ -181,7 +184,17 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 
 	auto GameThread_FinalizeDocs = [this](FString const& OutputPath) -> bool
 	{
-		return Current->DocGen->GT_Finalize(OutputPath);
+		bool const Result = Current->DocGen->GT_Finalize(OutputPath);
+
+		if (!Result)
+		{
+			Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed"));
+			Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
+			Current->Task->Notification->ExpireAndFadeout();
+			//GEditor->PlayEditorSound(CompileSuccessSound);
+		}
+
+		return Result;
 	};
 
 	/*****************************/
@@ -202,9 +215,6 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to initialize doc generator!"));
 		return;
 	}
-
-	Current->Task->Notification->SetExpireDuration(2.0f);
-	Current->Task->Notification->SetText(LOCTEXT("DocGenInProgress", "Doc gen in progress"));
 
 	bool const bCleanIntermediate = true;
 	if(bCleanIntermediate)
@@ -255,9 +265,12 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	{
 		UE_LOG(LogKantanDocGen, Error, TEXT("No nodes were found to document!"));
 
-		Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed - No nodes found"));
-		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
-		Current->Task->Notification->ExpireAndFadeout();
+		DocGenThreads::RunOnGameThread([this]
+			{
+				Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed - No nodes found"));
+				Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
+				Current->Task->Notification->ExpireAndFadeout();
+			});
 		//GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
 	}
@@ -266,15 +279,13 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	if(!DocGenThreads::RunOnGameThreadRetVal(GameThread_FinalizeDocs, IntermediateDir))
 	{
 		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to finalize xml docs!"));
-
-		Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed"));
-		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
-		Current->Task->Notification->ExpireAndFadeout();
-		//GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
 	}
 
-	Current->Task->Notification->SetText(LOCTEXT("DocConversionInProgress", "Converting docs"));
+	DocGenThreads::RunOnGameThread([this]
+		{
+			Current->Task->Notification->SetText(LOCTEXT("DocConversionInProgress", "Converting docs"));
+		});
 
 	auto TransformationResult = ProcessIntermediateDocs(
 		IntermediateDir,
@@ -289,30 +300,36 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 		auto Msg = FText::Format(LOCTEXT("DocConversionFailed", "Doc gen failed - {0}"),
 			TransformationResult == EIntermediateProcessingResult::DiskWriteFailure ? LOCTEXT("CouldNotWriteToOutput", "Could not write output, please clear output directory or enable 'Clean Output Directory' option") : LOCTEXT("GenericTransformationFailure", "Conversion failure")
 			);
-		Current->Task->Notification->SetText(Msg);
-		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
-		Current->Task->Notification->ExpireAndFadeout();
+		DocGenThreads::RunOnGameThread([this, Msg]
+			{
+				Current->Task->Notification->SetText(Msg);
+				Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
+				Current->Task->Notification->ExpireAndFadeout();
+			});
 		//GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
 	}
 
-	FString HyperlinkTarget = TEXT("file://") / FPaths::ConvertRelativePathToFull(Current->Task->Settings.OutputDirectory.Path / Current->Task->Settings.DocumentationTitle / TEXT("index.html"));
-	auto OnHyperlinkClicked = [HyperlinkTarget]
-	{
-		UE_LOG(LogKantanDocGen, Log, TEXT("Invoking hyperlink"));
-		FPlatformProcess::LaunchURL(*HyperlinkTarget, nullptr, nullptr);
-	};
+	DocGenThreads::RunOnGameThread([this]
+		{
+			FString HyperlinkTarget = TEXT("file://") / FPaths::ConvertRelativePathToFull(Current->Task->Settings.OutputDirectory.Path / Current->Task->Settings.DocumentationTitle / TEXT("index.html"));
+			auto OnHyperlinkClicked = [HyperlinkTarget]
+			{
+				UE_LOG(LogKantanDocGen, Log, TEXT("Invoking hyperlink"));
+				FPlatformProcess::LaunchURL(*HyperlinkTarget, nullptr, nullptr);
+			};
 
-	auto HyperlinkText = TAttribute< FText >::Create(TAttribute< FText >::FGetter::CreateLambda([] { return LOCTEXT("GeneratedDocsHyperlink", "View docs"); }));
-		// @TODO: Bug in SNotificationItemImpl::SetHyperlink, ignores non-delegate attributes... LOCTEXT("GeneratedDocsHyperlink", "View docs");
-
-	Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Doc gen completed"));
-	Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Success);
-	Current->Task->Notification->SetHyperlink(
-		FSimpleDelegate::CreateLambda(OnHyperlinkClicked),
-		HyperlinkText
-	);
-	Current->Task->Notification->ExpireAndFadeout();
+			auto const HyperlinkText = TAttribute< FText >::Create(TAttribute< FText >::FGetter::CreateLambda([] { return LOCTEXT("GeneratedDocsHyperlink", "View docs"); }));
+			// @TODO: Bug in SNotificationItemImpl::SetHyperlink, ignores non-delegate attributes... LOCTEXT("GeneratedDocsHyperlink", "View docs");
+		
+			Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Doc gen completed"));
+			Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Success);
+			Current->Task->Notification->SetHyperlink(
+				FSimpleDelegate::CreateLambda(OnHyperlinkClicked),
+				HyperlinkText
+			);
+			Current->Task->Notification->ExpireAndFadeout();
+		});
 
 	Current.Reset();
 }

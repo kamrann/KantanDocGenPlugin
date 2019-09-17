@@ -15,7 +15,7 @@ namespace DocGenThreads
 	template < typename TLambda >
 	inline auto RunOnGameThread(TLambda Func) -> void
 	{
-		FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(Func, TStatId(), nullptr, ENamedThreads::GameThread);
+		FGraphEventRef Task = FFunctionGraphTask::CreateAndDispatchWhenReady(MoveTemp(Func), TStatId(), nullptr, ENamedThreads::GameThread);
 		FTaskGraphInterface::Get().WaitUntilTaskCompletes(Task);
 	}
 
