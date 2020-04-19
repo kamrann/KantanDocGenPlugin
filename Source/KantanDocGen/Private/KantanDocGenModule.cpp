@@ -30,7 +30,7 @@ void FKantanDocGenModule::StartupModule()
 {
 	{
 		// Create command list
-		UICommands = MakeShared< FUICommandList >();
+		UICommands = MakeShareable< FUICommandList >(new FUICommandList);
 
 		FKantanDocGenCommands::Register();
 

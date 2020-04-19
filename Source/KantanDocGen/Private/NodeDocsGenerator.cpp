@@ -81,7 +81,7 @@ UK2Node* FNodeDocsGenerator::GT_InitializeForSpawner(UBlueprintNodeSpawner* Spaw
 	}
 
 	// Spawn an instance into the graph
-	auto NodeInst = Spawner->Invoke(Graph.Get(), IBlueprintNodeBinder::FBindingSet{}, FVector2D(0, 0));
+	auto NodeInst = Spawner->Invoke(Graph.Get(), TSet< TWeakObjectPtr< UObject > >(), FVector2D(0, 0));
 
 	// Currently Blueprint nodes only
 	auto K2NodeInst = Cast< UK2Node >(NodeInst);
@@ -178,7 +178,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 
 		PixelData = MakeUnique<TImagePixelData<FColor>>(FIntPoint((int32)Desired.X, (int32)Desired.Y));
 
-		if(RTResource->ReadPixelsPtr(PixelData->Pixels.GetData(), ReadPixelFlags, Rect) == false)
+		if(RTResource->ReadPixels(PixelData->Pixels, ReadPixelFlags, Rect) == false)
 		{
 			UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to read pixels for node image."));
 			return false;
@@ -290,7 +290,7 @@ TSharedPtr< FXmlFile > FNodeDocsGenerator::InitIndexXml(FString const& IndexTitl
 	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
 <root></root>)xxx";
 
-	TSharedPtr< FXmlFile > File = MakeShared< FXmlFile >(FileTemplate, EConstructMethod::ConstructFromBuffer);
+	TSharedPtr< FXmlFile > File = MakeShareable(new FXmlFile(FileTemplate, EConstructMethod::ConstructFromBuffer));
 	auto Root = File->GetRootNode();
 
 	AppendChildCDATA(Root, TEXT("display_name"), IndexTitle);
@@ -304,7 +304,7 @@ TSharedPtr< FXmlFile > FNodeDocsGenerator::InitClassDocXml(UClass* Class)
 	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
 <root></root>)xxx";
 
-	TSharedPtr< FXmlFile > File = MakeShared< FXmlFile >(FileTemplate, EConstructMethod::ConstructFromBuffer);
+	TSharedPtr< FXmlFile > File = MakeShareable(new FXmlFile(FileTemplate, EConstructMethod::ConstructFromBuffer));
 	auto Root = File->GetRootNode();
 
 	AppendChildCDATA(Root, TEXT("docs_name"), DocsTitle);

@@ -34,7 +34,7 @@ FDocGenTaskProcessor::FDocGenTaskProcessor()
 
 void FDocGenTaskProcessor::QueueTask(FKantanDocGenSettings const& Settings)
 {
-	TSharedPtr< FDocGenTask > NewTask = MakeShared< FDocGenTask >();
+	TSharedPtr< FDocGenTask > NewTask = MakeShareable(new FDocGenTask());
 	NewTask->Settings = Settings;
 
 	FNotificationInfo Info(LOCTEXT("DocGenWaiting", "Doc gen waiting"));
@@ -100,14 +100,14 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	TFunction<void()> GameThread_EnqueueEnumerators = [this]()
 	{
 		// @TODO: Specific class enumerator
-		Current->Enumerators.Enqueue(MakeShared< FCompositeEnumerator< FNativeModuleEnumerator > >(Current->Task->Settings.NativeModules));
+		Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FNativeModuleEnumerator > >(new FCompositeEnumerator< FNativeModuleEnumerator >(Current->Task->Settings.NativeModules)));
 
 		TArray< FName > ContentPackagePaths;
 		for (auto const& Path : Current->Task->Settings.ContentPaths)
 		{
 			ContentPackagePaths.AddUnique(FName(*Path.Path));
 		}
-		Current->Enumerators.Enqueue(MakeShared< FCompositeEnumerator< FContentPathEnumerator > >(ContentPackagePaths));
+		Current->Enumerators.Enqueue(MakeShareable< FCompositeEnumerator< FContentPathEnumerator > >(new FCompositeEnumerator< FContentPathEnumerator >(ContentPackagePaths)));
 	};
 
 	auto GameThread_EnumerateNextObject = [this]() -> bool
