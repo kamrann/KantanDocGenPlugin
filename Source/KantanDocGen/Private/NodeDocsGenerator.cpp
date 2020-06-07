@@ -177,6 +177,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 		ReadPixelFlags.SetLinearToGamma(true); // @TODO: is this gamma correction, or something else?
 
 		PixelData = MakeUnique<TImagePixelData<FColor>>(FIntPoint((int32)Desired.X, (int32)Desired.Y));
+		PixelData->Pixels.SetNumUninitialized(Desired.X * Desired.Y);
 
 		if(RTResource->ReadPixelsPtr(PixelData->Pixels.GetData(), ReadPixelFlags, Rect) == false)
 		{
