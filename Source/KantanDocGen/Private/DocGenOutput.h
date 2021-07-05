@@ -33,6 +33,34 @@ public:
 
 };
 
+class IDocTreeObject;
+
+class IDocTreeArray
+{
+public:
+	virtual TSharedPtr<IDocTreeArray> AddArray(const FString& ArrayName) = 0;
+	virtual TSharedPtr<IDocTreeObject> AddObject(const FString& ObjectName) = 0;
+};
+
+class IDocTreeObject
+{
+public:
+	virtual TSharedPtr<IDocTreeObject> AddObject(const FString& FieldName) = 0;
+	virtual TSharedPtr<IDocTreeArray> AddArray(const FString& FieldName) = 0;
+
+	virtual void AddField(const FString& FieldName, const FString& FieldValue ) = 0;
+	virtual void AddField(const FString& FieldName, const double& FieldValue ) = 0;
+	virtual void AddField(const FString& FieldName, const uint64 FieldValue) = 0;
+};
+
+class XMLDocTreeArray : public IDocTreeArray
+{
+	virtual TSharedPtr<IDocTreeArray> AddArray(const FString& ArrayName)
+};
+
+
+
+
 UCLASS(abstract)
 class UDocTree : public UObject
 {

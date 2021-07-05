@@ -13,6 +13,8 @@
 #include "BlueprintEventNodeSpawner.h"
 #include "BlueprintFunctionNodeSpawner.h"
 #include "BlueprintNodeSpawner.h"
+#include "DocGenOutput.h"
+#include "DoxygenParserHelpers.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "HighResScreenshot.h"
@@ -30,7 +32,6 @@
 #include "TextureResource.h"
 #include "ThreadingHelpers.h"
 #include "XmlFile.h"
-#include "DoxygenParserHelpers.h"
 
 FNodeDocsGenerator::~FNodeDocsGenerator()
 {
@@ -387,22 +388,22 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 		{
 			AppendChildCDATA(Root, TEXT("rawcomment"), Func->GetMetaData(TEXT("Comment")));
 			TArray<FStringFormatArg> Args;
-			
+
 			if (FProperty* RetProp = Func->GetReturnProperty())
 			{
 				Args.Add({RetProp->GetClass()->GetName()});
 			}
 			else
 			{
-				Args.Add( {"void"});
+				Args.Add({"void"});
 			}
-			Args.Add({ UK2Node_CallFunction::GetUserFacingFunctionName(Func).ToString()});
+			Args.Add({UK2Node_CallFunction::GetUserFacingFunctionName(Func).ToString()});
 			FString FuncParams;
 			for (TFieldIterator<FProperty> PropertyIterator(Func);
 				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_Parm); ++PropertyIterator)
 			{
 				FProperty* FuncParameter = *PropertyIterator;
-				
+
 				FString ParamString = FuncParameter->GetCPPType() + " " + FuncParameter->GetAuthoredName();
 				if (FuncParams.Len() != 0)
 				{
@@ -412,9 +413,8 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 			}
 			Args.Add({FuncParams});
 			Args.Add({Func->HasAnyFunctionFlags(FUNC_Const) ? " const" : ""});
-			AppendChildCDATA(Root, TEXT("rawsignature"),
-				FString::Format(TEXT("{0} {1}({2}){3}"), Args));
-			
+			AppendChildCDATA(Root, TEXT("rawsignature"), FString::Format(TEXT("{0} {1}({2}){3}"), Args));
+
 			auto Tags = Detail::ParseDoxygenTagsForString(Func->GetMetaData(TEXT("Comment")));
 			if (Tags.Num())
 			{
@@ -437,7 +437,23 @@ bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& S
 */
 		}
 	}
-	
+
+	TSharedPtr<IDocTreeArray> Inputs = RootNode.AddChildArray("inputs");
+	for (auto Pin : Node->Pins)
+	{
+		if (Pin->Direction == EEdGraphPinDirection::EGPD_Input)
+		{
+			if (ShouldDocumentPin(Pin))
+			{
+				TSharedPtr<IDocTreeObject> Input = Inputs->AddObject("param");
+				FString PinName, PinType, PinDesc;
+				ExtractPinInformation(Pin, PinName, PinType, PinDesc);
+				Input->AddField("name", PinName);
+				Input->AddField("type", PinType);
+				Input->AddField("description", PinDesc);
+			}
+		}
+	}
 
 	auto Inputs = AppendChild(Root, TEXT("inputs"));
 	for (auto Pin : Node->Pins)
