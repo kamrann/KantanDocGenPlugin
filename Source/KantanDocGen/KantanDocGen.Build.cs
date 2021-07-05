@@ -15,7 +15,7 @@ public class KantanDocGen : ModuleRules
 		bEnforceIWYU = true;
 
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Private"));
-
+		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "../../ThirdParty/variant/include"));
 		PublicDependencyModuleNames.AddRange(
             new string[] {
                 "Core",

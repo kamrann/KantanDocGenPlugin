@@ -6,14 +6,15 @@
 
 #pragma once
 
-#include "UObject/UnrealType.h"
+#include "DocGenOutput.h"
 #include "Engine/EngineTypes.h"
-#include "UObject/ObjectMacros.h"
 #include "GameFramework/Actor.h"
-#include "Misc/Paths.h"
 #include "Misc/App.h"
-#include "DocGenSettings.generated.h"
+#include "Misc/Paths.h"
+#include "UObject/ObjectMacros.h"
+#include "UObject/UnrealType.h"
 
+#include "DocGenSettings.generated.h"
 
 USTRUCT()
 struct FKantanDocGenSettings
@@ -23,29 +24,35 @@ struct FKantanDocGenSettings
 public:
 	UPROPERTY(EditAnywhere, Category = "Documentation")
 	FString DocumentationTitle;
-		
+
 	/** List of C++ modules in which to search for blueprint-exposed classes to document. */
-	UPROPERTY(EditAnywhere, Category = "Class Search", Meta = (Tooltip = "Raw module names (Do not prefix with '/Script')."))
-	TArray< FName > NativeModules;
+	UPROPERTY(EditAnywhere, Category = "Class Search",
+			  Meta = (Tooltip = "Raw module names (Do not prefix with '/Script')."))
+	TArray<FName> NativeModules;
 
 	/** List of paths in which to search for blueprints to document. */
-	UPROPERTY(EditAnywhere, Category = "Class Search", Meta = (ContentDir))//, Meta = (Tooltip = "Path to content subfolder, e.g. '/Game/MyFolder' or '/PluginName/MyFolder'."))
-	//TArray< FName > ContentPaths;
-	TArray< FDirectoryPath > ContentPaths;
+	UPROPERTY(EditAnywhere, Category = "Class Search",
+			  Meta = (ContentDir)) //, Meta = (Tooltip = "Path to content subfolder, e.g. '/Game/MyFolder' or
+								   //'/PluginName/MyFolder'."))
+	// TArray< FName > ContentPaths;
+	TArray<FDirectoryPath> ContentPaths;
 
 	/** Names of specific classes/blueprints to document. */
-	UPROPERTY()//EditAnywhere, Category = "Class Search")
-	TArray< FName > SpecificClasses;
+	UPROPERTY() // EditAnywhere, Category = "Class Search")
+	TArray<FName> SpecificClasses;
 
 	/** Names of specific classes/blueprints to exclude. */
-	UPROPERTY()//EditAnywhere, Category = "Class Search")
-	TArray< FName > ExcludedClasses;
+	UPROPERTY() // EditAnywhere, Category = "Class Search")
+	TArray<FName> ExcludedClasses;
 
 	UPROPERTY(EditAnywhere, Category = "Output")
 	FDirectoryPath OutputDirectory;
 
 	UPROPERTY(EditAnywhere, Category = "Class Search", AdvancedDisplay)
-	TSubclassOf< UObject > BlueprintContextClass;
+	TSubclassOf<UObject> BlueprintContextClass;
+
+	UPROPERTY(EditAnywhere, Category = "Output")
+	TSubclassOf<UDocTree> OutputFormatter;
 
 	UPROPERTY(EditAnywhere, Category = "Output")
 	bool bCleanOutputDirectory;
@@ -59,15 +66,12 @@ public:
 
 	bool HasAnySources() const
 	{
-		return NativeModules.Num() > 0
-			|| ContentPaths.Num() > 0
-			|| SpecificClasses.Num() > 0
-			;
+		return NativeModules.Num() > 0 || ContentPaths.Num() > 0 || SpecificClasses.Num() > 0;
 	}
 };
 
 UCLASS(Config = EditorPerProjectUserSettings)
-class UKantanDocGenSettingsObject: public UObject
+class UKantanDocGenSettingsObject : public UObject
 {
 	GENERATED_BODY()
 
@@ -77,9 +81,9 @@ public:
 		static bool bInitialized = false;
 
 		// This is a singleton, use default object
-		auto DefaultSettings = GetMutableDefault< UKantanDocGenSettingsObject >();
+		auto DefaultSettings = GetMutableDefault<UKantanDocGenSettingsObject>();
 
-		if(!bInitialized)
+		if (!bInitialized)
 		{
 			InitDefaults(DefaultSettings);
 
@@ -91,17 +95,17 @@ public:
 
 	static void InitDefaults(UKantanDocGenSettingsObject* CDO)
 	{
-		if(CDO->Settings.DocumentationTitle.IsEmpty())
+		if (CDO->Settings.DocumentationTitle.IsEmpty())
 		{
 			CDO->Settings.DocumentationTitle = FApp::GetProjectName();
 		}
 
-		if(CDO->Settings.OutputDirectory.Path.IsEmpty())
+		if (CDO->Settings.OutputDirectory.Path.IsEmpty())
 		{
 			CDO->Settings.OutputDirectory.Path = FPaths::ProjectSavedDir() / TEXT("KantanDocGen");
 		}
 
-		if(CDO->Settings.BlueprintContextClass == nullptr)
+		if (CDO->Settings.BlueprintContextClass == nullptr)
 		{
 			CDO->Settings.BlueprintContextClass = AActor::StaticClass();
 		}
@@ -111,4 +115,3 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = "Kantan DocGen", Meta = (ShowOnlyInnerProperties))
 	FKantanDocGenSettings Settings;
 };
-
