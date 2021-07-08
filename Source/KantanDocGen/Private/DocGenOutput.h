@@ -1,94 +1,128 @@
 #pragma once
+#include "Containers/Map.h"
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
 #include "Misc/Optional.h"
+#include "Templates/SharedPointer.h"
 #include "VariantWrapper.h"
 
-#include "DocGenOutput.generated.h"
-
-class DocTreeNode
+class DocTreeNode : public TSharedFromThis<DocTreeNode>
 {
-	using Array = TArray<TSharedPtr<DocTreeNode>>;
+public:
 	using Object = TMultiMap<FString, TSharedPtr<DocTreeNode>>;
+
+private:
 	struct NullValue
 	{};
 
 	enum class InternalDataType
 	{
-		Array,
 		String,
 		Object,
 		Null
 	};
 	// Nodes are either an array, or an object, or a string value
-	DocGen::Variant<Object, Array, FString, NullValue> Value;
-	InternalDataType CurrentDataType;
+	DocGen::Variant<Object, FString, NullValue> Value;
+	InternalDataType CurrentDataType = InternalDataType::Null;
+	bool bValueRequiresEscaping = false;
 
 public:
-	void SetValue(const FString& NewValue)
+	void SetValue(const FString& NewValue, bool bEscapeValue = false)
 	{
-		CurrentDataType = InternalDataType::String;
+		if (CurrentDataType == InternalDataType::Null)
+		{
+			Value.Set<FString>(FString());
+			CurrentDataType = InternalDataType::String;
+		}
+		auto StringPtr = Value.TryGet<FString>();
+		check(StringPtr);
+		bValueRequiresEscaping = bEscapeValue;
 		Value.Set<FString>(NewValue);
 	}
 
-};
-
-class IDocTreeObject;
-
-class IDocTreeArray
-{
-public:
-	virtual TSharedPtr<IDocTreeArray> AddArray(const FString& ArrayName) = 0;
-	virtual TSharedPtr<IDocTreeObject> AddObject(const FString& ObjectName) = 0;
-};
-
-class IDocTreeObject
-{
-public:
-	virtual TSharedPtr<IDocTreeObject> AddObject(const FString& FieldName) = 0;
-	virtual TSharedPtr<IDocTreeArray> AddArray(const FString& FieldName) = 0;
-
-	virtual void AddField(const FString& FieldName, const FString& FieldValue ) = 0;
-	virtual void AddField(const FString& FieldName, const double& FieldValue ) = 0;
-	virtual void AddField(const FString& FieldName, const uint64 FieldValue) = 0;
-};
-
-class XMLDocTreeArray : public IDocTreeArray
-{
-	virtual TSharedPtr<IDocTreeArray> AddArray(const FString& ArrayName)
-};
-
-
-
-
-UCLASS(abstract)
-class UDocTree : public UObject
-{
-	GENERATED_BODY()
-
-	TSharedPtr<DocTreeNode> RootNode;
-
-public:
-	TSharedPtr<DocTreeNode> GetRootNode() const
+	const FString& GetValue()
 	{
-		return RootNode;
+		if (CurrentDataType == InternalDataType::Null)
+		{
+			Value.Set<FString>(FString());
+			CurrentDataType = InternalDataType::String;
+		}
+		auto StringPtr = Value.TryGet<FString>();
+		check(StringPtr);
+		return *StringPtr;
+	}
+
+	TSharedPtr<DocTreeNode> FindChildByName(const FString& ChildName)
+	{
+		Object* ObjPtr = Value.TryGet<Object>();
+		check(ObjPtr);
+		TSharedPtr<DocTreeNode>* FoundChild = ObjPtr->Find(ChildName);
+		if (FoundChild != nullptr)
+		{
+			return *FoundChild;
+		}
+		else
+		{
+			return TSharedPtr<DocTreeNode>();
+		}
+	}
+	TSharedPtr<DocTreeNode> AppendChild(const FString& ChildName)
+	{
+		if (CurrentDataType == InternalDataType::Null)
+		{
+			Value.Set<Object>(Object());
+			CurrentDataType = InternalDataType::Object;
+		}
+		auto ObjPtr = Value.TryGet<Object>();
+		check(ObjPtr);
+		TSharedPtr<DocTreeNode> NewChild = MakeShared<DocTreeNode>();
+		ObjPtr->Add(ChildName, NewChild);
+		return NewChild;
+	}
+
+	TSharedPtr<DocTreeNode> AppendChildWithValue(const FString& ChildName, const FString& NewValue)
+	{
+		TSharedPtr<DocTreeNode> NewChild = AppendChild(ChildName);
+		NewChild->SetValue(NewValue);
+		return NewChild;
+	}
+
+	TSharedPtr<DocTreeNode> AppendChildWithValueEscaped(const FString& ChildName, const FString& NewValue)
+	{
+		TSharedPtr<DocTreeNode> NewChild = AppendChild(ChildName);
+		NewChild->SetValue(NewValue, true);
+		return NewChild;
+	}
+
+	struct IDocTreeSerializer
+	{
+		virtual FString EscapeString(const FString& InString) = 0;
+		virtual void SerializeObject(const Object& Object) = 0;
+		virtual void SerializeString(const FString& InString) = 0;
+		virtual void SerializeNull() = 0;
+		virtual bool SaveToFile(const FString& OutFile) = 0;
+		virtual ~IDocTreeSerializer() {};
+	};
+
+	void SerializeWith(TSharedPtr<IDocTreeSerializer> Serializer)
+	{
+		switch (CurrentDataType)
+		{
+			case InternalDataType::Null:
+				Serializer->SerializeNull();
+				break;
+			case InternalDataType::Object:
+				Serializer->SerializeObject(Value.Get<Object>());
+				break;
+			case InternalDataType::String:
+				if (bValueRequiresEscaping)
+				{
+					Serializer->SerializeString(Serializer->EscapeString(Value.Get<FString>()));
+				}
+				else
+				{
+					Serializer->SerializeString(Value.Get<FString>());
+				}
+		}
 	}
 };
-
-/*
-
-UINTERFACE()
-class UDocGenOutput : public UInterface
-{
-	GENERATED_BODY();
-};
-
-class IDocGenOutput
-{
-	GENERATED_BODY();
-
-	virtual bool LoadFile(const FString& Path);
-	virtual bool LoadBuffer(const FString& Buffer);
-	virtual IOutputNode* GetRootNode();
-	virtual bool Save(const FString& OutputPath);
-};*/

@@ -11,6 +11,7 @@
 #include "GameFramework/Actor.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
+#include "OutputFormats/DocGenSerializerFactory.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UnrealType.h"
 
@@ -51,8 +52,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Class Search", AdvancedDisplay)
 	TSubclassOf<UObject> BlueprintContextClass;
 
-	UPROPERTY(EditAnywhere, Category = "Output")
-	TSubclassOf<UDocTree> OutputFormatter;
+	UPROPERTY(EditAnywhere, meta = (MustImplement = "DocGenSerializerFactory"), Category = "Output")
+	TArray<TSubclassOf<UObject>> OutputFormats;
 
 	UPROPERTY(EditAnywhere, Category = "Output")
 	bool bCleanOutputDirectory;

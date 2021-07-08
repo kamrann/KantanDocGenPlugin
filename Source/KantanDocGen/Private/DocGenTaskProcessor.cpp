@@ -255,7 +255,10 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 					UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to generate node doc xml!"))
 					continue;
 				}
-
+				if (!Current->DocGen->GenerateNodeDocTree(NodeInst, NodeState))
+				{
+					continue;
+				}
 				++SuccessfulNodeCount;
 			}
 		}
