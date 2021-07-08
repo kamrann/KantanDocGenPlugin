@@ -13,7 +13,7 @@
 #include "BlueprintEventNodeSpawner.h"
 #include "BlueprintFunctionNodeSpawner.h"
 #include "BlueprintNodeSpawner.h"
-#include "DocGenOutput.h"
+#include "DocTreeNode.h"
 #include "DoxygenParserHelpers.h"
 #include "EdGraphSchema_K2.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -24,9 +24,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "NodeFactory.h"
-#include "OutputFormats/DocGenSerializerFactory.h"
-#include "OutputFormats/Serializers/DocGenJsonSerializer.h"
-#include "OutputFormats/Serializers/DocGenXMLSerializer.h"
+#include "OutputFormats/DocGenOutputFormatFactory.h"
 #include "Runtime/ImageWriteQueue/Public/ImageWriteTask.h"
 #include "SGraphNode.h"
 #include "SGraphPanel.h"
@@ -34,7 +32,6 @@
 #include "Stats/StatsMisc.h"
 #include "TextureResource.h"
 #include "ThreadingHelpers.h"
-#include "XmlFile.h"
 
 FNodeDocsGenerator::~FNodeDocsGenerator()
 {
@@ -63,10 +60,8 @@ bool FNodeDocsGenerator::GT_Init(FString const& InDocsTitle, FString const& InOu
 
 	DocsTitle = InDocsTitle;
 
-	IndexXml = InitIndexXml(DocsTitle);
 	IndexTree = InitIndexDocTree(DocsTitle);
 
-	ClassDocsMap.Empty();
 	ClassDocTreeMap.Empty();
 	OutputDir = InOutputDir;
 
@@ -96,13 +91,6 @@ UK2Node* FNodeDocsGenerator::GT_InitializeForSpawner(UBlueprintNodeSpawner* Spaw
 
 	auto AssociatedClass = MapToAssociatedClass(K2NodeInst, SourceObject);
 
-	if (!ClassDocsMap.Contains(AssociatedClass))
-	{
-		// New class xml file needs adding
-		ClassDocsMap.Add(AssociatedClass, InitClassDocXml(AssociatedClass));
-		// Also update the index xml
-		UpdateIndexDocWithClass(IndexXml.Get(), AssociatedClass);
-	}
 	if (!ClassDocTreeMap.Contains(AssociatedClass))
 	{
 		ClassDocTreeMap.Add(AssociatedClass, InitClassDocTree(AssociatedClass));
@@ -110,7 +98,6 @@ UK2Node* FNodeDocsGenerator::GT_InitializeForSpawner(UBlueprintNodeSpawner* Spaw
 	}
 
 	OutState = FNodeProcessingState();
-	OutState.ClassDocXml = ClassDocsMap.FindChecked(AssociatedClass);
 	OutState.ClassDocsPath = OutputDir / GetClassDocId(AssociatedClass);
 	OutState.ClassDocTree = ClassDocTreeMap.FindChecked(AssociatedClass);
 
@@ -119,12 +106,12 @@ UK2Node* FNodeDocsGenerator::GT_InitializeForSpawner(UBlueprintNodeSpawner* Spaw
 
 bool FNodeDocsGenerator::GT_Finalize(FString OutputPath)
 {
-	if (!SaveClassDocXml(OutputPath))
+	if (!SaveClassDocFile(OutputPath))
 	{
 		return false;
 	}
 
-	if (!SaveIndexXml(OutputPath))
+	if (!SaveIndexFile(OutputPath))
 	{
 		return false;
 	}
@@ -227,29 +214,6 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 	return bSuccess;
 }
 
-inline FString WrapAsCDATA(FString const& InString)
-{
-	return TEXT("<![CDATA[") + InString + TEXT("]]>");
-}
-
-inline FXmlNode* AppendChild(FXmlNode* Parent, FString const& Name)
-{
-	Parent->AppendChildNode(Name, FString());
-	return Parent->GetChildrenNodes().Last();
-}
-
-inline FXmlNode* AppendChildRaw(FXmlNode* Parent, FString const& Name, FString const& TextContent)
-{
-	Parent->AppendChildNode(Name, TextContent);
-	return Parent->GetChildrenNodes().Last();
-}
-
-inline FXmlNode* AppendChildCDATA(FXmlNode* Parent, FString const& Name, FString const& TextContent)
-{
-	Parent->AppendChildNode(Name, WrapAsCDATA(TextContent));
-	return Parent->GetChildrenNodes().Last();
-}
-
 // For K2 pins only!
 bool ExtractPinInformation(UEdGraphPin* Pin, FString& OutName, FString& OutType, FString& OutDescription)
 {
@@ -293,18 +257,6 @@ bool ExtractPinInformation(UEdGraphPin* Pin, FString& OutName, FString& OutType,
 	return true;
 }
 
-TSharedPtr<FXmlFile> FNodeDocsGenerator::InitIndexXml(FString const& IndexTitle)
-{
-	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
-<root></root>)xxx";
-
-	TSharedPtr<FXmlFile> File = MakeShared<FXmlFile>(FileTemplate, EConstructMethod::ConstructFromBuffer);
-	auto Root = File->GetRootNode();
-
-	AppendChildCDATA(Root, TEXT("display_name"), IndexTitle);
-	AppendChild(Root, TEXT("classes"));
-	return File;
-}
 
 TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitIndexDocTree(FString const& IndexTitle)
 {
@@ -314,21 +266,7 @@ TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitIndexDocTree(FString const& Inde
 	return IndexDocTree;
 }
 
-TSharedPtr<FXmlFile> FNodeDocsGenerator::InitClassDocXml(UClass* Class)
-{
-	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
-<root></root>)xxx";
 
-	TSharedPtr<FXmlFile> File = MakeShared<FXmlFile>(FileTemplate, EConstructMethod::ConstructFromBuffer);
-	auto Root = File->GetRootNode();
-
-	AppendChildCDATA(Root, TEXT("docs_name"), DocsTitle);
-	AppendChildCDATA(Root, TEXT("id"), GetClassDocId(Class));
-	AppendChildCDATA(Root, TEXT("display_name"), FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
-	AppendChild(Root, TEXT("nodes"));
-
-	return File;
-}
 TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitClassDocTree(UClass* Class)
 {
 	TSharedPtr<DocTreeNode> ClassDoc = MakeShared<DocTreeNode>();
@@ -340,16 +278,6 @@ TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitClassDocTree(UClass* Class)
 	return ClassDoc;
 }
 
-bool FNodeDocsGenerator::UpdateIndexDocWithClass(FXmlFile* DocFile, UClass* Class)
-{
-	auto ClassId = GetClassDocId(Class);
-	auto Classes = DocFile->GetRootNode()->FindChildNode(TEXT("classes"));
-	auto ClassElem = AppendChild(Classes, TEXT("class"));
-	AppendChildCDATA(ClassElem, TEXT("id"), ClassId);
-	AppendChildCDATA(ClassElem, TEXT("display_name"),
-					 FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
-	return true;
-}
 bool FNodeDocsGenerator::UpdateIndexDocWithClass(TSharedPtr<DocTreeNode> DocTree, UClass* Class)
 {
 	auto DocTreeClassesElement = DocTree->FindChildByName("classes");
@@ -369,171 +297,11 @@ bool FNodeDocsGenerator::UpdateClassDocWithNode(TSharedPtr<DocTreeNode> DocTree,
 	return true;
 }
 
-bool FNodeDocsGenerator::UpdateClassDocWithNode(FXmlFile* DocFile, UEdGraphNode* Node)
-{
-	auto NodeId = GetNodeDocId(Node);
-	auto Nodes = DocFile->GetRootNode()->FindChildNode(TEXT("nodes"));
-	auto NodeElem = AppendChild(Nodes, TEXT("node"));
-	AppendChildCDATA(NodeElem, TEXT("id"), NodeId);
-	AppendChildCDATA(NodeElem, TEXT("shorttitle"), Node->GetNodeTitle(ENodeTitleType::ListView).ToString());
-	return true;
-}
-
 inline bool ShouldDocumentPin(UEdGraphPin* Pin)
 {
 	return !Pin->bHidden;
 }
 
-bool FNodeDocsGenerator::GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& State)
-{
-	SCOPE_SECONDS_COUNTER(GenerateNodeDocsTime);
-
-	auto NodeDocsPath = State.ClassDocsPath / TEXT("nodes");
-	FString DocFilePath = NodeDocsPath / (GetNodeDocId(Node) + TEXT(".xml"));
-
-	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
-<root></root>)xxx";
-
-	FXmlFile File(FileTemplate, EConstructMethod::ConstructFromBuffer);
-	auto Root = File.GetRootNode();
-
-	AppendChildCDATA(Root, TEXT("docs_name"), DocsTitle);
-	// Since we pull these from the class xml file, the entries are already CDATA wrapped
-	AppendChildRaw(Root, TEXT("class_id"),
-				   State.ClassDocXml->GetRootNode()->FindChildNode(TEXT("id"))->GetContent()); // GetClassDocId(Class));
-	AppendChildRaw(Root, TEXT("class_name"),
-				   State.ClassDocXml->GetRootNode()
-					   ->FindChildNode(TEXT("display_name"))
-					   ->GetContent()); // FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
-
-	FString NodeShortTitle = Node->GetNodeTitle(ENodeTitleType::ListView).ToString();
-	AppendChildCDATA(Root, TEXT("shorttitle"), NodeShortTitle.TrimEnd());
-
-	FString NodeFullTitle = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
-	auto TargetIdx = NodeFullTitle.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
-	if (TargetIdx != INDEX_NONE)
-	{
-		NodeFullTitle = NodeFullTitle.Left(TargetIdx).TrimEnd();
-	}
-	AppendChildCDATA(Root, TEXT("fulltitle"), NodeFullTitle);
-
-	FString NodeDesc = Node->GetTooltipText().ToString();
-	TargetIdx = NodeDesc.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
-	if (TargetIdx != INDEX_NONE)
-	{
-		NodeDesc = NodeDesc.Left(TargetIdx).TrimEnd();
-	}
-	AppendChildCDATA(Root, TEXT("description"), NodeDesc);
-	AppendChildCDATA(Root, TEXT("imgpath"), State.RelImageBasePath / State.ImageFilename);
-	AppendChildCDATA(Root, TEXT("category"), Node->GetMenuCategory().ToString());
-
-	if (auto FuncNode = Cast<UK2Node_CallFunction>(Node))
-	{
-		auto Func = FuncNode->GetTargetFunction();
-		if (Func)
-		{
-			AppendChildCDATA(Root, TEXT("rawcomment"), Func->GetMetaData(TEXT("Comment")));
-			TArray<FStringFormatArg> Args;
-
-			if (FProperty* RetProp = Func->GetReturnProperty())
-			{
-				Args.Add({RetProp->GetClass()->GetName()});
-			}
-			else
-			{
-				Args.Add({"void"});
-			}
-			Args.Add({UK2Node_CallFunction::GetUserFacingFunctionName(Func).ToString()});
-			FString FuncParams;
-			for (TFieldIterator<FProperty> PropertyIterator(Func);
-				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_Parm); ++PropertyIterator)
-			{
-				FProperty* FuncParameter = *PropertyIterator;
-
-				FString ParamString = FuncParameter->GetCPPType() + " " + FuncParameter->GetAuthoredName();
-				if (FuncParams.Len() != 0)
-				{
-					FuncParams.Append(", ");
-				}
-				FuncParams.Append(ParamString);
-			}
-			Args.Add({FuncParams});
-			Args.Add({Func->HasAnyFunctionFlags(FUNC_Const) ? " const" : ""});
-			AppendChildCDATA(Root, TEXT("rawsignature"), FString::Format(TEXT("{0} {1}({2}){3}"), Args));
-
-			auto Tags = Detail::ParseDoxygenTagsForString(Func->GetMetaData(TEXT("Comment")));
-			if (Tags.Num())
-			{
-				auto DoxygenNode = AppendChild(Root, "Doxygen");
-				for (auto CurrentTag : Tags)
-				{
-					for (auto CurrentValue : CurrentTag.Value)
-					{
-						auto TagNode = AppendChildCDATA(DoxygenNode, CurrentTag.Key, CurrentValue);
-					}
-				}
-			}
-
-			/*
-			// Iterate over all params of function
-	for (TFieldIterator<FProperty> PropIt(InFunction); PropIt && (PropIt->PropertyFlags & CPF_Parm); ++PropIt)
-	{
-		FProperty* FuncParam = *PropIt;
-
-*/
-		}
-	}
-
-	auto Inputs = AppendChild(Root, TEXT("inputs"));
-	for (auto Pin : Node->Pins)
-	{
-		if (Pin->Direction == EEdGraphPinDirection::EGPD_Input)
-		{
-			if (ShouldDocumentPin(Pin))
-			{
-				auto Input = AppendChild(Inputs, TEXT("param"));
-
-				FString PinName, PinType, PinDesc;
-				ExtractPinInformation(Pin, PinName, PinType, PinDesc);
-
-				AppendChildCDATA(Input, TEXT("name"), PinName);
-				AppendChildCDATA(Input, TEXT("type"), PinType);
-				AppendChildCDATA(Input, TEXT("description"), PinDesc);
-			}
-		}
-	}
-
-	auto Outputs = AppendChild(Root, TEXT("outputs"));
-	for (auto Pin : Node->Pins)
-	{
-		if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
-		{
-			if (ShouldDocumentPin(Pin))
-			{
-				auto Output = AppendChild(Outputs, TEXT("param"));
-
-				FString PinName, PinType, PinDesc;
-				ExtractPinInformation(Pin, PinName, PinType, PinDesc);
-
-				AppendChildCDATA(Output, TEXT("name"), PinName);
-				AppendChildCDATA(Output, TEXT("type"), PinType);
-				AppendChildCDATA(Output, TEXT("description"), PinDesc);
-			}
-		}
-	}
-
-	if (!File.Save(DocFilePath))
-	{
-		return false;
-	}
-
-	if (!UpdateClassDocWithNode(State.ClassDocXml.Get(), Node))
-	{
-		return false;
-	}
-
-	return true;
-}
 
 bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState& State)
 {
@@ -586,7 +354,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 			{
 				Args.Add({"void"});
 			}
-			Args.Add({UK2Node_CallFunction::GetUserFacingFunctionName(Func).ToString()});
+			Args.Add({FuncNode->GetFunctionName().ToString()});
 			FString FuncParams;
 			for (TFieldIterator<FProperty> PropertyIterator(Func);
 				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_Parm); ++PropertyIterator)
@@ -660,7 +428,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 	for (const auto& OutputFormatFactory : OutputFormats)
 	{
 		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
-		const auto& FactoryInterface = Cast<IDocGenSerializerFactory>(FactoryObject);
+		const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
 		if (!FactoryInterface)
 		{
 			continue;
@@ -678,34 +446,26 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 	return true;
 }
 
-bool FNodeDocsGenerator::SaveIndexXml(FString const& OutDir)
+bool FNodeDocsGenerator::SaveIndexFile(FString const& OutDir)
 {
-	auto Path = OutDir / TEXT("index.xml");
-	IndexXml->Save(Path);
 	for (const auto& OutputFormatFactory : OutputFormats)
 	{
 		
 		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
-		const auto& FactoryInterface = Cast<IDocGenSerializerFactory>(FactoryObject);
+		const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
 		if (!FactoryInterface)
 		{
 			continue;
 		}
 		auto Serializer = FactoryInterface->CreateSerializer();
 		IndexTree->SerializeWith(Serializer);
-		Serializer->SaveToFile(Path, "index");
+		Serializer->SaveToFile(OutDir, "index");
 	}
 	return true;
 }
 
-bool FNodeDocsGenerator::SaveClassDocXml(FString const& OutDir)
+bool FNodeDocsGenerator::SaveClassDocFile(FString const& OutDir)
 {
-	for (auto const& Entry : ClassDocsMap)
-	{
-		auto ClassId = GetClassDocId(Entry.Key.Get());
-		auto Path = OutDir / ClassId / (ClassId + TEXT(".xml"));
-		Entry.Value->Save(Path);
-	}
 	for (const auto& Entry : ClassDocTreeMap)
 	{
 		auto ClassId = GetClassDocId(Entry.Key.Get());
@@ -714,7 +474,7 @@ bool FNodeDocsGenerator::SaveClassDocXml(FString const& OutDir)
 		{
 			
 			auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
-			const auto& FactoryInterface = Cast<IDocGenSerializerFactory>(FactoryObject);
+			const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
 			if (!FactoryInterface)
 			{
 				continue;

@@ -15,6 +15,7 @@
 #include "CoreMinimal.h"
 
 
+
 class ISourceObjectEnumerator;
 class FNodeDocsGenerator;
 
@@ -66,19 +67,10 @@ protected:
 protected:
 	void ProcessTask(TSharedPtr< FDocGenTask > InTask);
 
-	enum EIntermediateProcessingResult: uint8 {
-		Success,
-		SuccessWithErrors,
-		UnknownError,
-		DiskWriteFailure,
-	};
-
-	EIntermediateProcessingResult ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput);
-
 protected:
 	TQueue< TSharedPtr< FDocGenTask > > Waiting;
 	TUniquePtr< FDocGenCurrentTask > Current;
-	TQueue< TSharedPtr< FDocGenOutputTask > > Converting;
+	//TQueue< TSharedPtr< FDocGenOutputTask > > Converting;
 
 	FThreadSafeBool bRunning;	// @NOTE: Using this to sync with module calls from game thread is not 100% okay (we're not atomically testing), but whatevs.
 	FThreadSafeBool bTerminationRequest;

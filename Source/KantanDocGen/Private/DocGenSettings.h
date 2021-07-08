@@ -6,12 +6,12 @@
 
 #pragma once
 
-#include "DocGenOutput.h"
+#include "DocTreeNode.h"
 #include "Engine/EngineTypes.h"
 #include "GameFramework/Actor.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
-#include "OutputFormats/DocGenSerializerFactory.h"
+#include "OutputFormats/DocGenOutputFormatFactory.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UnrealType.h"
 
@@ -52,7 +52,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Class Search", AdvancedDisplay)
 	TSubclassOf<UObject> BlueprintContextClass;
 
-	UPROPERTY(EditAnywhere, meta = (MustImplement="DocGenSerializerFactory"),Category = "Output")
+	UPROPERTY(EditAnywhere, meta = (MustImplement="DocGenOutputFormatFactory"),Category = "Output")
 	TArray<TSubclassOf<UObject>> OutputFormats;
 
 	UPROPERTY(EditAnywhere, Category = "Output")

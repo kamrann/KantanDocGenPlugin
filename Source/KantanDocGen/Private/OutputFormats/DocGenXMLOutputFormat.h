@@ -1,11 +1,12 @@
 #pragma once
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
-#include "DocGenOutput.h"
-#include "OutputFormats/DocGenSerializerFactory.h"
+#include "DocTreeNode.h"
+#include "OutputFormats/DocGenOutputFormatFactory.h"
+#include "OutputFormats/DocGenOutputProcessor.h"
 #include "XmlFile.h"
 
-#include "DocGenXMLSerializer.generated.h"
+#include "DocGenXMLOutputFormat.generated.h"
 
 class DocGenXMLSerializer : public DocTreeNode::IDocTreeSerializer
 {
@@ -15,8 +16,9 @@ class DocGenXMLSerializer : public DocTreeNode::IDocTreeSerializer
 	{
 		return TEXT("<![CDATA[") + InString + TEXT("]]>");
 	}
-	virtual FString GetFileExtension() override {
-		return ".xml_";
+	virtual FString GetFileExtension() override
+	{
+		return ".xml";
 	}
 	virtual void SerializeObject(const DocTreeNode::Object& Obj) override
 	{
@@ -41,8 +43,8 @@ public:
 	DocGenXMLSerializer()
 	{
 		const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>)xxx"
-		"\r\n"
-		R"xxx(<root></root>)xxx";
+									 "\r\n"
+									 R"xxx(<root></root>)xxx";
 
 		TopLevelFile = MakeShared<FXmlFile>(FileTemplate, EConstructMethod::ConstructFromBuffer);
 		TargetNode = TopLevelFile->GetRootNode();
@@ -57,8 +59,16 @@ public:
 	};
 };
 
+class DocGenXMLOutputProcessor : public IDocGenOutputProcessor
+{
+public:
+	virtual EIntermediateProcessingResult ProcessIntermediateDocs(FString const& IntermediateDir,
+																  FString const& OutputDir, FString const& DocTitle,
+																  bool bCleanOutput) override;
+};
+
 UCLASS()
-class UDocGenXMLSerializerFactory : public UObject, public IDocGenSerializerFactory
+class UDocGenXMLOutputFactory : public UObject, public IDocGenOutputFormatFactory
 {
 	GENERATED_BODY()
 
@@ -66,5 +76,9 @@ public:
 	virtual TSharedPtr<struct DocTreeNode::IDocTreeSerializer> CreateSerializer() override
 	{
 		return MakeShared<DocGenXMLSerializer>();
+	}
+	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() override
+	{
+		return MakeShared<DocGenXMLOutputProcessor>();
 	}
 };

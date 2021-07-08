@@ -30,14 +30,13 @@ public:
 public:
 	struct FNodeProcessingState
 	{
-		TSharedPtr< FXmlFile > ClassDocXml;
 		TSharedPtr<DocTreeNode> ClassDocTree;
 		FString ClassDocsPath;
 		FString RelImageBasePath;
 		FString ImageFilename;
 
 		FNodeProcessingState():
-			ClassDocXml()
+			ClassDocTree()
 			, ClassDocsPath()
 			, RelImageBasePath()
 			, ImageFilename()
@@ -53,26 +52,19 @@ public:
 
 	/** Callable from background thread */
 	bool GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingState& State);
-	bool GenerateNodeDocs(UK2Node* Node, FNodeProcessingState& State);
 	bool GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState& State);
 	/**/
 
 protected:
 	void CleanUp();
-	TSharedPtr< FXmlFile > InitIndexXml(FString const& IndexTitle);
-	TSharedPtr< FXmlFile > InitClassDocXml(UClass* Class);
-	bool UpdateIndexDocWithClass(FXmlFile* DocFile, UClass* Class);
-	bool UpdateClassDocWithNode(FXmlFile* DocFile, UEdGraphNode* Node);
-	bool SaveIndexXml(FString const& OutDir);
-	bool SaveClassDocXml(FString const& OutDir);
+	bool SaveIndexFile(FString const& OutDir);
+	bool SaveClassDocFile(FString const& OutDir);
 
 	TSharedPtr<DocTreeNode> InitIndexDocTree(FString const& IndexTitle);
 	TSharedPtr<DocTreeNode> InitClassDocTree(UClass* Class);
 	bool UpdateIndexDocWithClass(TSharedPtr<DocTreeNode> DocTree, UClass* Class);
 	bool UpdateClassDocWithNode(TSharedPtr<DocTreeNode> DocTree, UEdGraphNode* Node);
-	bool SaveIndexDoc(FString const& OutDir){};
-	bool SaveClassDoc(FString const& OutDir){};
-
+	
 	static void AdjustNodeForSnapshot(UEdGraphNode* Node);
 	static FString GetClassDocId(UClass* Class);
 	static FString GetNodeDocId(UEdGraphNode* Node);
@@ -85,9 +77,7 @@ protected:
 	TSharedPtr< class SGraphPanel > GraphPanel;
 
 	FString DocsTitle;
-	TSharedPtr< FXmlFile > IndexXml;
 	TSharedPtr<DocTreeNode> IndexTree;
-	TMap< TWeakObjectPtr< UClass >, TSharedPtr< FXmlFile > > ClassDocsMap;
 	TMap<TWeakObjectPtr<UClass>, TSharedPtr<DocTreeNode>> ClassDocTreeMap;
 	TArray<TSubclassOf<UObject>> OutputFormats;
 	FString OutputDir;

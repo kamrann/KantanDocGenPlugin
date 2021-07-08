@@ -1,16 +1,17 @@
 #pragma once
 #include "Containers/UnrealString.h"
 #include "CoreMinimal.h"
-#include "DocGenOutput.h"
+#include "DocTreeNode.h"
 #include "Json.h"
 #include "Misc/FileHelper.h"
-#include "OutputFormats/DocGenSerializerFactory.h"
+#include "OutputFormats/DocGenOutputFormatFactory.h"
+#include "OutputFormats/DocGenOutputProcessor.h"
 #include "Policies/PrettyJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "Templates/SharedPointer.h"
 
-#include "DocGenJsonSerializer.generated.h"
+#include "DocGenJsonOutputFormat.generated.h"
 
 class DocGenJsonSerializer : public DocTreeNode::IDocTreeSerializer
 {
@@ -102,13 +103,24 @@ public:
 			auto JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&Result);
 			FJsonSerializer::Serialize(TopLevelObject->AsObject().ToSharedRef(), JsonWriter);
 
-			return FFileHelper::SaveStringToFile(Result, *(OutFileDirectory / OutFileName + GetFileExtension()), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+			return FFileHelper::SaveStringToFile(Result, *(OutFileDirectory / OutFileName + GetFileExtension()),
+												 FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 		}
 	};
 };
 
+class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
+{
+public:
+	virtual EIntermediateProcessingResult ProcessIntermediateDocs(FString const& IntermediateDir,
+																  FString const& OutputDir, FString const& DocTitle,
+																  bool bCleanOutput) override
+	{
+		return EIntermediateProcessingResult::Success;
+	}
+};
 UCLASS()
-class UDocGenJsonSerializerFactory : public UObject, public IDocGenSerializerFactory
+class UDocGenJsonOutputFactory : public UObject, public IDocGenOutputFormatFactory
 {
 	GENERATED_BODY()
 
@@ -116,5 +128,9 @@ public:
 	virtual TSharedPtr<struct DocTreeNode::IDocTreeSerializer> CreateSerializer() override
 	{
 		return MakeShared<DocGenJsonSerializer>();
+	}
+	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() override
+	{
+		return MakeShared<DocGenJsonOutputProcessor>();
 	}
 };
