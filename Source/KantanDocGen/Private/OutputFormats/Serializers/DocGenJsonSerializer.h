@@ -21,7 +21,10 @@ class DocGenJsonSerializer : public DocTreeNode::IDocTreeSerializer
 	{
 		return InString;
 	}
-
+	virtual FString GetFileExtension() override
+	{
+		return ".json";
+	}
 	virtual void SerializeObject(const DocTreeNode::Object& Obj) override
 	{
 		TArray<FString> ObjectFieldNames;
@@ -46,7 +49,7 @@ class DocGenJsonSerializer : public DocTreeNode::IDocTreeSerializer
 		for (auto& FieldName : ObjectFieldNames)
 		{
 			TArray<TSharedPtr<DocTreeNode>> ArrayFieldValues;
-			Obj.MultiFind(ObjectFieldNames[0], ArrayFieldValues, true);
+			Obj.MultiFind(FieldName, ArrayFieldValues, true);
 			if (ArrayFieldValues.Num() > 1)
 			{
 				TargetObject->AsObject()->SetField(FieldName, SerializeArray(ArrayFieldValues));
@@ -87,7 +90,7 @@ public:
 		: TopLevelObject(MakeShared<FJsonValueObject>(MakeShared<FJsonObject>())),
 		  TargetObject(TopLevelObject)
 	{}
-	virtual bool SaveToFile(const FString& OutFile)
+	virtual bool SaveToFile(const FString& OutFileDirectory, const FString& OutFileName)
 	{
 		if (!TopLevelObject)
 		{
@@ -99,7 +102,7 @@ public:
 			auto JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&Result);
 			FJsonSerializer::Serialize(TopLevelObject->AsObject().ToSharedRef(), JsonWriter);
 
-			return FFileHelper::SaveStringToFile(Result, *OutFile, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
+			return FFileHelper::SaveStringToFile(Result, *(OutFileDirectory / OutFileName + GetFileExtension()), FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM);
 		}
 	};
 };

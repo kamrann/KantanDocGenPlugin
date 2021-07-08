@@ -208,7 +208,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 	DocGenThreads::RunOnGameThread(GameThread_EnqueueEnumerators);	
 
 	// Initialize the doc generator
-	Current->DocGen = MakeUnique< FNodeDocsGenerator >();
+	Current->DocGen = MakeUnique< FNodeDocsGenerator >(Current->Task->Settings.OutputFormats);
 
 	if(!DocGenThreads::RunOnGameThreadRetVal(GameThread_InitDocGen, Current->Task->Settings.DocumentationTitle, IntermediateDir))
 	{

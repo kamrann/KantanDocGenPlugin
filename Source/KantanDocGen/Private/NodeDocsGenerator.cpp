@@ -67,7 +67,7 @@ bool FNodeDocsGenerator::GT_Init(FString const& InDocsTitle, FString const& InOu
 	IndexTree = InitIndexDocTree(DocsTitle);
 
 	ClassDocsMap.Empty();
-
+	ClassDocTreeMap.Empty();
 	OutputDir = InOutputDir;
 
 	return true;
@@ -128,17 +128,6 @@ bool FNodeDocsGenerator::GT_Finalize(FString OutputPath)
 	{
 		return false;
 	}
-
-	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
-<root></root>)xxx";
-
-	TSharedPtr<FXmlFile> File = MakeShared<FXmlFile>(FileTemplate, EConstructMethod::ConstructFromBuffer);
-	auto Root = File->GetRootNode();
-
-	TSharedPtr<DocGenXMLSerializer> Serializer = MakeShared<DocGenXMLSerializer>(Root);
-	IndexTree->SerializeWith(Serializer);
-
-	File->Save("C:/temp/index.xml");
 
 	return true;
 }
@@ -551,12 +540,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 	SCOPE_SECONDS_COUNTER(GenerateNodeDocsTime);
 
 	auto NodeDocsPath = State.ClassDocsPath / TEXT("nodes");
-	FString DocFilePath = NodeDocsPath / (GetNodeDocId(Node) + TEXT(".xml"));
-
-	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>
-<root></root>)xxx";
-	FXmlFile File(FileTemplate, EConstructMethod::ConstructFromBuffer);
-	auto Root = File.GetRootNode();
+	
 
 	TSharedPtr<DocTreeNode> NodeDocFile = MakeShared<DocTreeNode>();
 	NodeDocFile->AppendChildWithValueEscaped("docs_name", DocsTitle);
@@ -673,12 +657,20 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		}
 	}
 
-	if (!File.Save(DocFilePath))
+	for (const auto& OutputFormatFactory : OutputFormats)
 	{
-		return false;
+		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
+		const auto& FactoryInterface = Cast<IDocGenSerializerFactory>(FactoryObject);
+		if (!FactoryInterface)
+		{
+			continue;
+		}
+		auto Serializer = FactoryInterface->CreateSerializer();
+		NodeDocFile->SerializeWith(Serializer);
+		Serializer->SaveToFile(NodeDocsPath , GetNodeDocId(Node));
 	}
 
-	if (!UpdateClassDocWithNode(State.ClassDocXml.Get(), Node))
+	if (!UpdateClassDocWithNode(State.ClassDocTree, Node))
 	{
 		return false;
 	}
@@ -690,7 +682,19 @@ bool FNodeDocsGenerator::SaveIndexXml(FString const& OutDir)
 {
 	auto Path = OutDir / TEXT("index.xml");
 	IndexXml->Save(Path);
-
+	for (const auto& OutputFormatFactory : OutputFormats)
+	{
+		
+		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
+		const auto& FactoryInterface = Cast<IDocGenSerializerFactory>(FactoryObject);
+		if (!FactoryInterface)
+		{
+			continue;
+		}
+		auto Serializer = FactoryInterface->CreateSerializer();
+		IndexTree->SerializeWith(Serializer);
+		Serializer->SaveToFile(Path, "index");
+	}
 	return true;
 }
 
@@ -702,7 +706,24 @@ bool FNodeDocsGenerator::SaveClassDocXml(FString const& OutDir)
 		auto Path = OutDir / ClassId / (ClassId + TEXT(".xml"));
 		Entry.Value->Save(Path);
 	}
-
+	for (const auto& Entry : ClassDocTreeMap)
+	{
+		auto ClassId = GetClassDocId(Entry.Key.Get());
+		auto Path = OutDir / ClassId;
+		for (const auto& OutputFormatFactory : OutputFormats)
+		{
+			
+			auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
+			const auto& FactoryInterface = Cast<IDocGenSerializerFactory>(FactoryObject);
+			if (!FactoryInterface)
+			{
+				continue;
+			}
+			auto Serializer = FactoryInterface->CreateSerializer();
+			Entry.Value->SerializeWith(Serializer);
+			Serializer->SaveToFile(Path, ClassId);
+		}
+	}
 	return true;
 }
 

@@ -15,6 +15,9 @@ class DocGenXMLSerializer : public DocTreeNode::IDocTreeSerializer
 	{
 		return TEXT("<![CDATA[") + InString + TEXT("]]>");
 	}
+	virtual FString GetFileExtension() override {
+		return ".xml_";
+	}
 	virtual void SerializeObject(const DocTreeNode::Object& Obj) override
 	{
 		for (auto& Member : Obj)
@@ -37,18 +40,20 @@ public:
 	DocGenXMLSerializer(FXmlNode* TargetNode) : TargetNode(TargetNode) {}
 	DocGenXMLSerializer()
 	{
-		const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?><root></root>)xxx";
+		const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>)xxx"
+		"\r\n"
+		R"xxx(<root></root>)xxx";
 
 		TopLevelFile = MakeShared<FXmlFile>(FileTemplate, EConstructMethod::ConstructFromBuffer);
 		TargetNode = TopLevelFile->GetRootNode();
 	}
-	virtual bool SaveToFile(const FString& OutFile)
+	virtual bool SaveToFile(const FString& OutFileDirectory, const FString& OutFileName)
 	{
 		if (!TopLevelFile)
 		{
 			return false;
 		}
-		return TopLevelFile->Save(OutFile);
+		return TopLevelFile->Save(OutFileDirectory / OutFileName + GetFileExtension());
 	};
 };
 

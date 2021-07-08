@@ -97,10 +97,11 @@ public:
 	struct IDocTreeSerializer
 	{
 		virtual FString EscapeString(const FString& InString) = 0;
+		virtual FString GetFileExtension() = 0;
 		virtual void SerializeObject(const Object& Object) = 0;
 		virtual void SerializeString(const FString& InString) = 0;
 		virtual void SerializeNull() = 0;
-		virtual bool SaveToFile(const FString& OutFile) = 0;
+		virtual bool SaveToFile(const FString& OutFileDirectory, const FString& OutFileName) = 0;
 		virtual ~IDocTreeSerializer() {};
 	};
 

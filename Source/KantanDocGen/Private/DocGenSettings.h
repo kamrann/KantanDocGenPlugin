@@ -52,7 +52,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Class Search", AdvancedDisplay)
 	TSubclassOf<UObject> BlueprintContextClass;
 
-	UPROPERTY(EditAnywhere, meta = (MustImplement = "DocGenSerializerFactory"), Category = "Output")
+	UPROPERTY(EditAnywhere, meta = (MustImplement="DocGenSerializerFactory"),Category = "Output")
 	TArray<TSubclassOf<UObject>> OutputFormats;
 
 	UPROPERTY(EditAnywhere, Category = "Output")
