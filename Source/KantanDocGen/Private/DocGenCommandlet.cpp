@@ -3,12 +3,12 @@
 #include "DocGenCommandlet.h"
 #include "Async/Async.h"
 #include "Async/TaskGraphInterfaces.h"
+#include "Containers/Ticker.h"
 #include "Containers/UnrealString.h"
 #include "DocGenSettings.h"
+#include "Interfaces/ISlateRHIRendererModule.h"
 #include "KantanDocGenModule.h"
 #include "Modules/ModuleManager.h"
-#include "StandaloneRenderer.h"
-#include "Interfaces/ISlateRHIRendererModule.h"
 
 UDocGenCommandlet::UDocGenCommandlet()
 {
@@ -39,9 +39,6 @@ UDocGenCommandlet::UDocGenCommandlet()
 
 	HelpParamNames.Add("cleanoutput");
 	HelpParamDescriptions.Add("cleans the output directory before generating the documentation");
-	IsClient = true;
-	IsServer = true;
-	IsEditor = true;
 }
 
 int32 UDocGenCommandlet::Main(const FString& Params)
@@ -154,16 +151,19 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 	while (!GenerateDocsResult.IsReady())
 	{
 		FTaskGraphInterface::Get().ProcessThreadUntilIdle(ENamedThreads::GameThread);
+		FTicker::GetCoreTicker().Tick(FApp::GetDeltaTime());
+		FSlateApplication::Get().PumpMessages();
+		FSlateApplication::Get().Tick();
 		FPlatformProcess::Sleep(0);
 	}
+
 	return 0;
 }
 
-void UDocGenCommandlet::CreateCustomEngine(const FString& Params) 
+void UDocGenCommandlet::CreateCustomEngine(const FString& Params)
 {
-	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
-	//FSlateApplication::InitializeAsStandaloneApplication(
-	//	FModuleManager::Get().GetModuleChecked<ISlateRHIRendererModule>("SlateRHIRenderer").CreateSlateRHIRenderer());
+	FSlateApplication::InitializeAsStandaloneApplication(
+		FModuleManager::Get().GetModuleChecked<ISlateRHIRendererModule>("SlateRHIRenderer").CreateSlateRHIRenderer());
 }
 
 TArray<UClass*> UDocGenCommandlet::GetAllOutputFormatFactories()
