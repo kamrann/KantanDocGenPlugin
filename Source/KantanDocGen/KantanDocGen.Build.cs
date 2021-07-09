@@ -35,7 +35,11 @@ public class KantanDocGen : ModuleRules
 				"Json",
 				"UMG",
 				"Projects",
-                "ImageWriteQueue"
+                "ImageWriteQueue",
+				"StandaloneRenderer",
+				"RenderCore",
+				"RHI",
+				"SlateRHIRenderer"
             }
         );
 	}

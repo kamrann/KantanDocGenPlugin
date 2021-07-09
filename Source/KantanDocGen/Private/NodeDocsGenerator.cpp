@@ -159,10 +159,15 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 		NodeWidget->SetOwner(GraphPanel.ToSharedRef());
 
 		const bool bUseGammaCorrection = false;
-		FWidgetRenderer Renderer(bUseGammaCorrection);
+		FWidgetRenderer Renderer(false);
 		Renderer.SetIsPrepassNeeded(true);
+		//UTextureRenderTarget2D* RenderTarget = Renderer.CreateTargetFor(DrawSize, TF_Trilinear, false);
+		//Renderer.DrawWidget(RenderTarget, NodeWidget.ToSharedRef(), 1.0f, DrawSize, 0.0f, false);
 		auto RenderTarget = Renderer.DrawWidget(NodeWidget.ToSharedRef(), DrawSize);
-
+		if (IsRunningCommandlet())
+		{
+			FlushRenderingCommands();
+		}
 		auto Desired = NodeWidget->GetDesiredSize();
 
 		FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
@@ -178,7 +183,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 			UE_LOG(LogKantanDocGen, Warning, TEXT("Failed to read pixels for node image."));
 			return false;
 		}
-
+		BeginReleaseResource(RTResource);
 		return true;
 	});
 
@@ -198,7 +203,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 	ImageTask->Format = EImageFormat::PNG;
 	ImageTask->CompressionQuality = (int32) EImageCompressionQuality::Default;
 	ImageTask->bOverwriteFile = true;
-	ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColor>(255));
+	//ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColor>(255));
 
 	if (ImageTask->RunTask())
 	{

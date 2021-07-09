@@ -17,6 +17,8 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/RunnableThread.h"
+#include "Async/Async.h"
+
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"
 
@@ -83,7 +85,12 @@ inline bool MatchPotentiallyQuoted(const TCHAR* Stream, const TCHAR* Match, FStr
 	return false;
 }
 
-void FKantanDocGenModule::GenerateDocs(FKantanDocGenSettings const& Settings)
+bool FKantanDocGenModule::IsProcessorRunning()
+{
+	return (Processor.IsValid() && Processor->IsRunning());
+}
+
+TFuture<void> FKantanDocGenModule::GenerateDocs(FKantanDocGenSettings const& Settings)
 {
 	if(!Processor.IsValid())
 	{
@@ -94,8 +101,12 @@ void FKantanDocGenModule::GenerateDocs(FKantanDocGenSettings const& Settings)
 
 	if(!Processor->IsRunning())
 	{
-		FRunnableThread::Create(Processor.Get(), TEXT("KantanDocGenProcessorThread"), 0, TPri_BelowNormal);
+		return Async(EAsyncExecution::Thread, [Processor = Processor.Get()](){Processor->Run();});
+		//FRunnableThread::Create(Processor.Get(), TEXT("KantanDocGenProcessorThread"), 0, TPri_BelowNormal);
 	}
+	TPromise<void> EmptyPromise;
+	EmptyPromise.SetValue();
+	return EmptyPromise.GetFuture();
 }
 
 void FKantanDocGenModule::ShowDocGenUI()

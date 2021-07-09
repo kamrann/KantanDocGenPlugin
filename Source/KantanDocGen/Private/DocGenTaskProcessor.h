@@ -8,21 +8,18 @@
 
 #include "DocGenSettings.h"
 
+#include "Containers/Queue.h"
+#include "CoreMinimal.h"
 #include "HAL/Runnable.h"
 #include "HAL/ThreadSafeBool.h"
 #include "UObject/WeakObjectPtrTemplates.h"
-#include "Containers/Queue.h"
-#include "CoreMinimal.h"
-
-
 
 class ISourceObjectEnumerator;
 class FNodeDocsGenerator;
 
 class UBlueprintNodeSpawner;
 
-
-class FDocGenTaskProcessor: public FRunnable
+class FDocGenTaskProcessor : public FRunnable
 {
 public:
 	FDocGenTaskProcessor();
@@ -41,39 +38,51 @@ protected:
 	struct FDocGenTask
 	{
 		FKantanDocGenSettings Settings;
-		TSharedPtr< class SNotificationItem > Notification;
+
+	protected:
+		TSharedPtr<class SNotificationItem> Notification;
+
+	public:
+		FDocGenTask();
+		// Begin safe wrappers around notification functions
+		void NotifyExpireDuration(float Duration);
+		void NotifyExpireFadeOut();
+		void NotifySetText(FText TextToDisplay);
+		void NotifySetCompletionState(uint32 State);
+		void NotifySetHyperlink(const FSimpleDelegate& InHyperlink,
+								const TAttribute<FText>& InHyperlinkText = TAttribute<FText>());
+		// end safe wrappers around notification functions
 	};
 
 	struct FDocGenCurrentTask
 	{
-		TSharedPtr< FDocGenTask > Task;
+		TSharedPtr<FDocGenTask> Task;
 
-		TQueue< TSharedPtr< ISourceObjectEnumerator > > Enumerators;
-		TSet< FName > Excluded;
-		TSet< TWeakObjectPtr< UObject > > Processed;
+		TQueue<TSharedPtr<ISourceObjectEnumerator>> Enumerators;
+		TSet<FName> Excluded;
+		TSet<TWeakObjectPtr<UObject>> Processed;
 
-		TSharedPtr< ISourceObjectEnumerator > CurrentEnumerator;
-		TWeakObjectPtr< UObject > SourceObject;
-		TQueue< TWeakObjectPtr< UBlueprintNodeSpawner > > CurrentSpawners;
+		TSharedPtr<ISourceObjectEnumerator> CurrentEnumerator;
+		TWeakObjectPtr<UObject> SourceObject;
+		TQueue<TWeakObjectPtr<UBlueprintNodeSpawner>> CurrentSpawners;
 
-		TUniquePtr< FNodeDocsGenerator > DocGen;
+		TUniquePtr<FNodeDocsGenerator> DocGen;
 	};
 
 	struct FDocGenOutputTask
 	{
-		TSharedPtr< FDocGenTask > Task;
+		TSharedPtr<FDocGenTask> Task;
 	};
 
 protected:
-	void ProcessTask(TSharedPtr< FDocGenTask > InTask);
+	void ProcessTask(TSharedPtr<FDocGenTask> InTask);
 
 protected:
-	TQueue< TSharedPtr< FDocGenTask > > Waiting;
-	TUniquePtr< FDocGenCurrentTask > Current;
-	//TQueue< TSharedPtr< FDocGenOutputTask > > Converting;
+	TQueue<TSharedPtr<FDocGenTask>> Waiting;
+	TSharedPtr<FDocGenCurrentTask> Current;
+	// TQueue< TSharedPtr< FDocGenOutputTask > > Converting;
 
-	FThreadSafeBool bRunning;	// @NOTE: Using this to sync with module calls from game thread is not 100% okay (we're not atomically testing), but whatevs.
+	FThreadSafeBool bRunning; // @NOTE: Using this to sync with module calls from game thread is not 100% okay (we're
+							  // not atomically testing), but whatevs.
 	FThreadSafeBool bTerminationRequest;
 };
-
-

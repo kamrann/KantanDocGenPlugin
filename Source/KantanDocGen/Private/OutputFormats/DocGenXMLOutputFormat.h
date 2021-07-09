@@ -67,7 +67,7 @@ public:
 																  bool bCleanOutput) override;
 };
 
-UCLASS()
+UCLASS(meta = (DisplayName = "XML"))
 class UDocGenXMLOutputFactory : public UObject, public IDocGenOutputFormatFactory
 {
 	GENERATED_BODY()
@@ -80,5 +80,9 @@ public:
 	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() override
 	{
 		return MakeShared<DocGenXMLOutputProcessor>();
+	}
+	virtual FString GetFormatIdentifier() override
+	{
+		return "xml";
 	}
 };

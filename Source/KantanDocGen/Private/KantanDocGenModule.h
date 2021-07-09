@@ -6,9 +6,8 @@
 
 #pragma once
 
+#include "DocGenTaskProcessor.h" // TUniquePtr seems to need full definition...
 #include "Modules/ModuleManager.h"
-#include "DocGenTaskProcessor.h"	// TUniquePtr seems to need full definition...
-
 
 class FUICommandList;
 
@@ -18,25 +17,27 @@ Module implementation
 class FKantanDocGenModule : public FDefaultGameModuleImpl
 {
 public:
-	FKantanDocGenModule()
-	{}
+	FKantanDocGenModule() {}
 
 public:
 	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
+	/// @brief Check if we are currently processing documentation. Intended only for use in commandlets
+	/// @return true if the processor is valid and currently running
+	bool IsProcessorRunning();
+
 public:
-	void GenerateDocs(struct FKantanDocGenSettings const& Settings);
+	TFuture<void> GenerateDocs(struct FKantanDocGenSettings const& Settings);
 
 protected:
-	void ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput);
+	void ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle,
+								 bool bCleanOutput);
 	void ShowDocGenUI();
 
 protected:
-	TUniquePtr< FDocGenTaskProcessor > Processor;
+	TUniquePtr<FDocGenTaskProcessor> Processor;
 
-	TSharedPtr< FUICommandList > UICommands;
+	TSharedPtr<FUICommandList> UICommands;
 };
-
-

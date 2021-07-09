@@ -5,6 +5,7 @@
 // Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
 #include "DocGenTaskProcessor.h"
+#include "Async/Async.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "BlueprintActionDatabase.h"
 #include "BlueprintNodeSpawner.h"
@@ -18,6 +19,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "K2Node.h"
 #include "KantanDocGenLog.h"
+#include "Misc/App.h"
 #include "NodeDocsGenerator.h"
 #include "OutputFormats/DocGenOutputFormatFactory.h"
 #include "OutputFormats/DocGenOutputProcessor.h"
@@ -36,20 +38,7 @@ void FDocGenTaskProcessor::QueueTask(FKantanDocGenSettings const& Settings)
 {
 	TSharedPtr<FDocGenTask> NewTask = MakeShared<FDocGenTask>();
 	NewTask->Settings = Settings;
-
-	FNotificationInfo Info(LOCTEXT("DocGenWaiting", "Doc gen waiting"));
-	Info.Image = nullptr; // FEditorStyle::GetBrush(TEXT("LevelEditor.RecompileGameCode"));
-	Info.FadeInDuration = 0.2f;
-	Info.ExpireDuration = 5.0f;
-	Info.FadeOutDuration = 1.0f;
-	Info.bUseThrobber = true;
-	Info.bUseSuccessFailIcons = true;
-	Info.bUseLargeFont = true;
-	Info.bFireAndForget = false;
-	Info.bAllowThrottleWhenFrameRateIsLow = false;
-	NewTask->Notification = FSlateNotificationManager::Get().AddNotification(Info);
-	NewTask->Notification->SetCompletionState(SNotificationItem::CS_Pending);
-
+	NewTask->NotifySetCompletionState(SNotificationItem::CS_Pending);
 	Waiting.Enqueue(NewTask);
 }
 
@@ -87,16 +76,22 @@ void FDocGenTaskProcessor::Stop()
 
 void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 {
+	Current = MakeShared<FDocGenCurrentTask>();
+	Current->Task = InTask;
 	/********** Lambdas for the game thread to execute **********/
 
-	auto GameThread_InitDocGen = [this](FString const& DocTitle, FString const& IntermediateDir) -> bool {
-		Current->Task->Notification->SetExpireDuration(2.0f);
-		Current->Task->Notification->SetText(LOCTEXT("DocGenInProgress", "Doc gen in progress"));
+	auto GameThread_InitDocGen = [Current = this->Current](FString const& DocTitle,
+														   FString const& IntermediateDir) -> bool {
+		if (!IsRunningCommandlet())
+		{
+			Current->Task->NotifyExpireDuration(2.0f);
+			Current->Task->NotifySetText(LOCTEXT("DocGenInProgress", "Doc gen in progress"));
+		}
 
 		return Current->DocGen->GT_Init(DocTitle, IntermediateDir, Current->Task->Settings.BlueprintContextClass);
 	};
 
-	TFunction<void()> GameThread_EnqueueEnumerators = [this]() {
+	TFunction<void()> GameThread_EnqueueEnumerators = [Current = this->Current]() {
 		// @TODO: Specific class enumerator
 		Current->Enumerators.Enqueue(
 			MakeShared<FCompositeEnumerator<FNativeModuleEnumerator>>(Current->Task->Settings.NativeModules));
@@ -185,9 +180,9 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 
 		if (!Result)
 		{
-			Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed"));
-			Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
-			Current->Task->Notification->ExpireAndFadeout();
+			Current->Task->NotifySetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed"));
+			Current->Task->NotifySetCompletionState(SNotificationItem::CS_Fail);
+			Current->Task->NotifyExpireFadeOut();
 			// GEditor->PlayEditorSound(CompileSuccessSound);
 		}
 
@@ -196,19 +191,22 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 
 	/*****************************/
 
-	Current = MakeUnique<FDocGenCurrentTask>();
-	Current->Task = InTask;
-
 	FString IntermediateDir =
 		FPaths::ProjectIntermediateDir() / TEXT("KantanDocGen") / Current->Task->Settings.DocumentationTitle;
 
-	DocGenThreads::RunOnGameThread(GameThread_EnqueueEnumerators);
+	auto EnqueueEnumeratorsResult = Async(EAsyncExecution::TaskGraphMainThread, GameThread_EnqueueEnumerators);
+
+	EnqueueEnumeratorsResult.Get();
 
 	// Initialize the doc generator
 	Current->DocGen = MakeUnique<FNodeDocsGenerator>(Current->Task->Settings.OutputFormats);
 
-	if (!DocGenThreads::RunOnGameThreadRetVal(GameThread_InitDocGen, Current->Task->Settings.DocumentationTitle,
-											  IntermediateDir))
+	auto InitDocGenResult = Async(
+		EAsyncExecution::TaskGraphMainThread, [GameThread_InitDocGen, Current = this->Current, IntermediateDir]() {
+			return GameThread_InitDocGen(Current->Task->Settings.DocumentationTitle, IntermediateDir);
+		});
+
+	if (!InitDocGenResult.Get())
 	{
 		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to initialize doc generator!"));
 		return;
@@ -242,8 +240,8 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 					   GameThread_EnumerateNextNode,
 					   NodeState)) // Game thread: Get next still valid spawner, spawn node, add to root, return it)
 			{
-				// NodeInst should hopefully not reference anything except stuff we control (ie graph object), and it's
-				// rooted so should be safe to deal with here
+				// NodeInst should hopefully not reference anything except stuff we control (ie graph object), and
+				// it's rooted so should be safe to deal with here
 
 				// Generate image
 				if (!Current->DocGen->GenerateNodeImage(NodeInst, NodeState))
@@ -268,9 +266,9 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 		UE_LOG(LogKantanDocGen, Error, TEXT("No nodes were found to document!"));
 
 		DocGenThreads::RunOnGameThread([this] {
-			Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed - No nodes found"));
-			Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
-			Current->Task->Notification->ExpireAndFadeout();
+			Current->Task->NotifySetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed - No nodes found"));
+			Current->Task->NotifySetCompletionState(SNotificationItem::CS_Fail);
+			Current->Task->NotifyExpireFadeOut();
 		});
 		// GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
@@ -284,7 +282,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 	}
 
 	DocGenThreads::RunOnGameThread(
-		[this] { Current->Task->Notification->SetText(LOCTEXT("DocConversionInProgress", "Converting docs")); });
+		[this] { Current->Task->NotifySetText(LOCTEXT("DocConversionInProgress", "Converting docs")); });
 	EIntermediateProcessingResult TransformationResult = Success;
 	for (const auto& OutputFormatFactory : Current->Task->Settings.OutputFormats)
 	{
@@ -303,24 +301,23 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 		{
 			TransformationResult = Result;
 		}
-		//Don't abort after performing one transformation, as others may succeed
+		// Don't abort after performing one transformation, as others may succeed
 	}
 
 	if (TransformationResult != EIntermediateProcessingResult::Success)
 	{
 		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to transform xml to html!"));
 
-		auto Msg = FText::Format(
-			LOCTEXT("DocConversionFailed", "Doc gen failed - {0}"),
-			TransformationResult == EIntermediateProcessingResult::DiskWriteFailure
-				? LOCTEXT(
-					  "CouldNotWriteToOutput",
-					  "Could not write output, please clear output directory or enable 'Clean Output Directory' option")
-				: LOCTEXT("GenericTransformationFailure", "Conversion failure"));
+		auto Msg = FText::Format(LOCTEXT("DocConversionFailed", "Doc gen failed - {0}"),
+								 TransformationResult == EIntermediateProcessingResult::DiskWriteFailure
+									 ? LOCTEXT("CouldNotWriteToOutput",
+											   "Could not write output, please clear output directory or "
+											   "enable 'Clean Output Directory' option")
+									 : LOCTEXT("GenericTransformationFailure", "Conversion failure"));
 		DocGenThreads::RunOnGameThread([this, Msg] {
-			Current->Task->Notification->SetText(Msg);
-			Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
-			Current->Task->Notification->ExpireAndFadeout();
+			Current->Task->NotifySetText(Msg);
+			Current->Task->NotifySetCompletionState(SNotificationItem::CS_Fail);
+			Current->Task->NotifyExpireFadeOut();
 		});
 		// GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
@@ -341,13 +338,81 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 		// @TODO: Bug in SNotificationItemImpl::SetHyperlink, ignores non-delegate attributes...
 		// LOCTEXT("GeneratedDocsHyperlink", "View docs");
 
-		Current->Task->Notification->SetText(LOCTEXT("DocConversionSuccessful", "Doc gen completed"));
-		Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Success);
-		Current->Task->Notification->SetHyperlink(FSimpleDelegate::CreateLambda(OnHyperlinkClicked), HyperlinkText);
-		Current->Task->Notification->ExpireAndFadeout();
+		Current->Task->NotifySetText(LOCTEXT("DocConversionSuccessful", "Doc gen completed"));
+		Current->Task->NotifySetCompletionState(SNotificationItem::CS_Success);
+		Current->Task->NotifySetHyperlink(FSimpleDelegate::CreateLambda(OnHyperlinkClicked), HyperlinkText);
+		Current->Task->NotifyExpireFadeOut();
 	});
 
 	Current.Reset();
+}
+
+FDocGenTaskProcessor::FDocGenTask::FDocGenTask()
+{
+	if (!IsRunningCommandlet())
+	{
+		FNotificationInfo Info(LOCTEXT("DocGenWaiting", "Doc gen waiting"));
+		Info.Image = nullptr; // FEditorStyle::GetBrush(TEXT("LevelEditor.RecompileGameCode"));
+		Info.FadeInDuration = 0.2f;
+		Info.ExpireDuration = 5.0f;
+		Info.FadeOutDuration = 1.0f;
+		Info.bUseThrobber = true;
+		Info.bUseSuccessFailIcons = true;
+		Info.bUseLargeFont = true;
+		Info.bFireAndForget = false;
+		Info.bAllowThrottleWhenFrameRateIsLow = false;
+
+		Notification = FSlateNotificationManager::Get().AddNotification(Info);
+	}
+	else
+	{
+		Notification = nullptr;
+	}
+}
+
+void FDocGenTaskProcessor::FDocGenTask::NotifyExpireDuration(float Duration)
+{
+	if (Notification)
+	{
+		Notification->SetExpireDuration(Duration);
+	}
+}
+
+void FDocGenTaskProcessor::FDocGenTask::NotifyExpireFadeOut()
+{
+	if (Notification)
+	{
+		Notification->ExpireAndFadeout();
+	}
+}
+
+void FDocGenTaskProcessor::FDocGenTask::NotifySetText(FText TextToDisplay)
+{
+	if (Notification)
+	{
+		Notification->SetText(TextToDisplay);
+	}
+	else
+	{
+		UE_LOG(LogKantanDocGen, Display, TEXT("%s"), *TextToDisplay.ToString());
+	}
+}
+
+void FDocGenTaskProcessor::FDocGenTask::NotifySetCompletionState(uint32 State)
+{
+	if (Notification)
+	{
+		Notification->SetCompletionState((SNotificationItem::ECompletionState)State);
+	}
+}
+
+void FDocGenTaskProcessor::FDocGenTask::NotifySetHyperlink(
+	const FSimpleDelegate& InHyperlink, const TAttribute<FText>& InHyperlinkText /*= TAttribute<FText>()*/)
+{
+	if (Notification)
+	{
+		Notification->SetHyperlink(InHyperlink, InHyperlinkText);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
