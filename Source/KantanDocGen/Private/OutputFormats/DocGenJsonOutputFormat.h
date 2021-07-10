@@ -6,6 +6,7 @@
 #include "Misc/FileHelper.h"
 #include "OutputFormats/DocGenOutputFormatFactory.h"
 #include "OutputFormats/DocGenOutputProcessor.h"
+#include "OutputFormats/DocGenJsonOutputProcessor.h"
 #include "Policies/PrettyJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -109,16 +110,7 @@ public:
 	};
 };
 
-class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
-{
-public:
-	virtual EIntermediateProcessingResult ProcessIntermediateDocs(FString const& IntermediateDir,
-																  FString const& OutputDir, FString const& DocTitle,
-																  bool bCleanOutput) override
-	{
-		return EIntermediateProcessingResult::Success;
-	}
-};
+
 UCLASS(meta = (DisplayName = "JSON"))
 class UDocGenJsonOutputFactory : public UObject, public IDocGenOutputFormatFactory
 {
@@ -131,7 +123,7 @@ public:
 	}
 	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() override
 	{
-		return MakeShared<DocGenJsonOutputProcessor>();
+		return MakeShared<class DocGenJsonOutputProcessor>();
 	}
 	virtual FString GetFormatIdentifier() override
 	{
