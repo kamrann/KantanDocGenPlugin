@@ -7,6 +7,7 @@
 #pragma once
 
 #include "NodeDocsGenerator.h"
+#include "Async/Async.h"
 #include "BlueprintActionDatabase.h"
 #include "BlueprintBoundNodeSpawner.h"
 #include "BlueprintComponentNodeSpawner.h"
@@ -154,7 +155,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 
 	TUniquePtr<TImagePixelData<FColor>> PixelData;
 
-	bSuccess = DocGenThreads::RunOnGameThreadRetVal([this, Node, DrawSize, &Rect, &PixelData] {
+	auto RenderNodeResult = Async(EAsyncExecution::TaskGraphMainThread, [this, Node, DrawSize, &Rect, &PixelData] {
 		auto NodeWidget = FNodeFactory::CreateNodeWidget(Node);
 		NodeWidget->SetOwner(GraphPanel.ToSharedRef());
 
@@ -181,7 +182,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 		return true;
 	});
 
-	if (!bSuccess)
+	if (!RenderNodeResult.Get())
 	{
 		return false;
 	}
@@ -256,7 +257,6 @@ bool ExtractPinInformation(UEdGraphPin* Pin, FString& OutName, FString& OutType,
 	return true;
 }
 
-
 TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitIndexDocTree(FString const& IndexTitle)
 {
 	TSharedPtr<DocTreeNode> IndexDocTree = MakeShared<DocTreeNode>();
@@ -264,7 +264,6 @@ TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitIndexDocTree(FString const& Inde
 	IndexDocTree->AppendChild(TEXT("classes"));
 	return IndexDocTree;
 }
-
 
 TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitClassDocTree(UClass* Class)
 {
@@ -301,13 +300,11 @@ inline bool ShouldDocumentPin(UEdGraphPin* Pin)
 	return !Pin->bHidden;
 }
 
-
 bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState& State)
 {
 	SCOPE_SECONDS_COUNTER(GenerateNodeDocsTime);
 
 	auto NodeDocsPath = State.ClassDocsPath / TEXT("nodes");
-	
 
 	TSharedPtr<DocTreeNode> NodeDocFile = MakeShared<DocTreeNode>();
 	NodeDocFile->AppendChildWithValueEscaped("docs_name", DocsTitle);
@@ -347,7 +344,9 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 
 			if (FProperty* RetProp = Func->GetReturnProperty())
 			{
-				Args.Add({RetProp->GetClass()->GetName()});
+				FString ExtendedParameters;
+				FString RetValType = RetProp->GetCPPType(&ExtendedParameters);
+				Args.Add({RetValType + ExtendedParameters});
 			}
 			else
 			{
@@ -356,11 +355,20 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 			Args.Add({FuncNode->GetFunctionName().ToString()});
 			FString FuncParams;
 			for (TFieldIterator<FProperty> PropertyIterator(Func);
-				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_Parm); ++PropertyIterator)
+				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_Parm | CPF_Parm); ++PropertyIterator)
 			{
 				FProperty* FuncParameter = *PropertyIterator;
+				
+				//Skip the return type as we handled it earlier
+				if (FuncParameter->HasAllPropertyFlags(CPF_ReturnParm))
+				{
+					continue;
+				}
 
-				FString ParamString = FuncParameter->GetCPPType() + " " + FuncParameter->GetAuthoredName();
+				FString ExtendedParameters;
+				FString ParamType = FuncParameter->GetCPPType(&ExtendedParameters);
+
+				FString ParamString = ParamType + ExtendedParameters + " " + FuncParameter->GetAuthoredName();
 				if (FuncParams.Len() != 0)
 				{
 					FuncParams.Append(", ");
@@ -434,7 +442,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		}
 		auto Serializer = FactoryInterface->CreateSerializer();
 		NodeDocFile->SerializeWith(Serializer);
-		Serializer->SaveToFile(NodeDocsPath , GetNodeDocId(Node));
+		Serializer->SaveToFile(NodeDocsPath, GetNodeDocId(Node));
 	}
 
 	if (!UpdateClassDocWithNode(State.ClassDocTree, Node))
@@ -449,7 +457,6 @@ bool FNodeDocsGenerator::SaveIndexFile(FString const& OutDir)
 {
 	for (const auto& OutputFormatFactory : OutputFormats)
 	{
-		
 		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
 		const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
 		if (!FactoryInterface)
@@ -471,7 +478,6 @@ bool FNodeDocsGenerator::SaveClassDocFile(FString const& OutDir)
 		auto Path = OutDir / ClassId;
 		for (const auto& OutputFormatFactory : OutputFormats)
 		{
-			
 			auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
 			const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
 			if (!FactoryInterface)

@@ -48,21 +48,7 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 	TArray<FString> Switches;
 	TMap<FString, FString> ParsedParams;
 	ParseCommandLine(*Params, Tokens, Switches, ParsedParams);
-	UE_LOG(LogTemp, Display, TEXT("Tokens:"));
-	for (const FString& Token : Tokens)
-	{
-		UE_LOG(LogTemp, Display, TEXT("%s"), *Token);
-	}
-	UE_LOG(LogTemp, Display, TEXT("Switches:"));
-	for (const FString& Switch : Switches)
-	{
-		UE_LOG(LogTemp, Display, TEXT("%s"), *Switch);
-	}
-	UE_LOG(LogTemp, Display, TEXT("Params:"));
-	for (const auto& Param : ParsedParams)
-	{
-		UE_LOG(LogTemp, Display, TEXT("%s : %s"), *Param.Key, *Param.Value);
-	}
+	
 	FKantanDocGenSettings Settings;
 	// Defaults
 	Settings.DocumentationTitle = FApp::GetProjectName();

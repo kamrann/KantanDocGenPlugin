@@ -226,9 +226,10 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 	int SuccessfulNodeCount = 0;
 	while (Current->Enumerators.Dequeue(Current->CurrentEnumerator))
 	{
-		while (DocGenThreads::RunOnGameThreadRetVal(
-			GameThread_EnumerateNextObject)) // Game thread: Enumerate next Obj, get spawner list for Obj, store as
-											 // array of weak ptrs.
+		while (Async(EAsyncExecution::TaskGraphMainThread, [GameThread_EnumerateNextObject]() {
+				   return GameThread_EnumerateNextObject();
+			   }).Get()) // Game thread: Enumerate next Obj, get spawner list for Obj, store as
+						 // array of weak ptrs.
 		{
 			if (bTerminationRequest)
 			{
@@ -236,9 +237,10 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 			}
 
 			FNodeDocsGenerator::FNodeProcessingState NodeState;
-			while (auto NodeInst = DocGenThreads::RunOnGameThreadRetVal(
-					   GameThread_EnumerateNextNode,
-					   NodeState)) // Game thread: Get next still valid spawner, spawn node, add to root, return it)
+			while (auto NodeInst =
+					   Async(EAsyncExecution::TaskGraphMainThread, [&NodeState, GameThread_EnumerateNextNode]() {
+						   return GameThread_EnumerateNextNode(NodeState);
+					   }).Get()) // Game thread: Get next still valid spawner, spawn node, add to root, return it)
 			{
 				// NodeInst should hopefully not reference anything except stuff we control (ie graph object), and
 				// it's rooted so should be safe to deal with here
@@ -264,8 +266,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 	if (SuccessfulNodeCount == 0)
 	{
 		UE_LOG(LogKantanDocGen, Error, TEXT("No nodes were found to document!"));
-
-		DocGenThreads::RunOnGameThread([this] {
+		Async(EAsyncExecution::TaskGraphMainThread, [this] {
 			Current->Task->NotifySetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed - No nodes found"));
 			Current->Task->NotifySetCompletionState(SNotificationItem::CS_Fail);
 			Current->Task->NotifyExpireFadeOut();
@@ -275,14 +276,17 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 	}
 
 	// Game thread: DocGen.GT_Finalize()
-	if (!DocGenThreads::RunOnGameThreadRetVal(GameThread_FinalizeDocs, IntermediateDir))
+	auto FinalizeResult = Async(EAsyncExecution::TaskGraphMainThread, [GameThread_FinalizeDocs, IntermediateDir]() {
+		return GameThread_FinalizeDocs(IntermediateDir);
+	});
+	if (!FinalizeResult.Get())
 	{
 		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to finalize xml docs!"));
 		return;
 	}
+	Async(EAsyncExecution::TaskGraphMainThread,
+		  [this] { Current->Task->NotifySetText(LOCTEXT("DocConversionInProgress", "Converting docs")); });
 
-	DocGenThreads::RunOnGameThread(
-		[this] { Current->Task->NotifySetText(LOCTEXT("DocConversionInProgress", "Converting docs")); });
 	EIntermediateProcessingResult TransformationResult = Success;
 	for (const auto& OutputFormatFactory : Current->Task->Settings.OutputFormats)
 	{
@@ -314,16 +318,17 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 											   "Could not write output, please clear output directory or "
 											   "enable 'Clean Output Directory' option")
 									 : LOCTEXT("GenericTransformationFailure", "Conversion failure"));
-		DocGenThreads::RunOnGameThread([this, Msg] {
+		Async(EAsyncExecution::TaskGraphMainThread, [this, Msg] {
 			Current->Task->NotifySetText(Msg);
 			Current->Task->NotifySetCompletionState(SNotificationItem::CS_Fail);
 			Current->Task->NotifyExpireFadeOut();
 		});
+
 		// GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
 	}
 
-	DocGenThreads::RunOnGameThread([this] {
+	Async(EAsyncExecution::TaskGraphMainThread, [Current = this->Current] {
 		FString HyperlinkTarget =
 			TEXT("file://") /
 			FPaths::ConvertRelativePathToFull(Current->Task->Settings.OutputDirectory.Path /
@@ -343,8 +348,6 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 		Current->Task->NotifySetHyperlink(FSimpleDelegate::CreateLambda(OnHyperlinkClicked), HyperlinkText);
 		Current->Task->NotifyExpireFadeOut();
 	});
-
-	Current.Reset();
 }
 
 FDocGenTaskProcessor::FDocGenTask::FDocGenTask()
@@ -402,7 +405,7 @@ void FDocGenTaskProcessor::FDocGenTask::NotifySetCompletionState(uint32 State)
 {
 	if (Notification)
 	{
-		Notification->SetCompletionState((SNotificationItem::ECompletionState)State);
+		Notification->SetCompletionState((SNotificationItem::ECompletionState) State);
 	}
 }
 
