@@ -39,6 +39,9 @@ UDocGenCommandlet::UDocGenCommandlet()
 
 	HelpParamNames.Add("cleanoutput");
 	HelpParamDescriptions.Add("cleans the output directory before generating the documentation");
+
+	HelpParamNames.Add("template");
+	HelpParamDescriptions.Add("Path to the template file to use when rendering output for formats that require it");
 }
 
 int32 UDocGenCommandlet::Main(const FString& Params)
@@ -48,7 +51,7 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 	TArray<FString> Switches;
 	TMap<FString, FString> ParsedParams;
 	ParseCommandLine(*Params, Tokens, Switches, ParsedParams);
-	
+
 	FKantanDocGenSettings Settings;
 	// Defaults
 	Settings.DocumentationTitle = FApp::GetProjectName();
@@ -104,6 +107,12 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 	{
 		Settings.OutputDirectory.Path = ParsedParams["outputdir"];
 	}
+	FDocGenOutputSettings FactorySettings;
+
+	if (ParsedParams.Contains("template"))
+	{
+		FactorySettings.TemplateFile.FilePath = ParsedParams["template"];
+	}
 
 	if (ParsedParams.Contains("formats"))
 	{
@@ -115,15 +124,12 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 		{
 			for (const auto& Factory : OutputFormatFactories)
 			{
-				auto FactoryObject = NewObject<UObject>(GetTransientPackage(), Factory);
-				const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
-				if (!FactoryInterface)
+				auto FactoryObject = NewObject<UDocGenOutputFormatFactoryBase>(GetTransientPackage(), Factory);
+				
+				if (FactoryObject->GetFormatIdentifier() == Value)
 				{
-					continue;
-				}
-				if (FactoryInterface->GetFormatIdentifier() == Value)
-				{
-					Settings.OutputFormats.Add(Factory);
+					FactoryObject->OutputSettings = FactorySettings;
+					Settings.OutputFormats.Add(FactoryObject);
 				}
 			}
 		}
@@ -165,14 +171,14 @@ TArray<UClass*> UDocGenCommandlet::GetAllOutputFormatFactories()
 			continue;
 		}
 
-		// Ignore deprecated
-		if (Class->HasAnyClassFlags(CLASS_Deprecated | CLASS_NewerVersionExists))
+		// Ignore deprecated or abstract classes
+		if (Class->HasAnyClassFlags(CLASS_Deprecated | CLASS_NewerVersionExists | CLASS_Abstract))
 		{
 			continue;
 		}
 
-		// Check this class inplements our factory
-		if (!Class->ImplementsInterface(UDocGenOutputFormatFactory::StaticClass()))
+		// Check this class implements our factory
+		if (!Class->IsChildOf(UDocGenOutputFormatFactoryBase::StaticClass()))
 		{
 			continue;
 		}

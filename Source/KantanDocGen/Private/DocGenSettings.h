@@ -52,8 +52,8 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Class Search", AdvancedDisplay)
 	TSubclassOf<UObject> BlueprintContextClass;
 
-	UPROPERTY(EditAnywhere, meta = (MustImplement="DocGenOutputFormatFactory"),Category = "Output")
-	TArray<TSubclassOf<UObject>> OutputFormats;
+	UPROPERTY(Instanced, Export, EditAnywhere,Category = "Output")
+	TArray<UDocGenOutputFormatFactoryBase*> OutputFormats;
 
 	UPROPERTY(EditAnywhere, Category = "Output")
 	bool bCleanOutputDirectory;

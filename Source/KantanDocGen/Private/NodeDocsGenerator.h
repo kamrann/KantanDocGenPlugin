@@ -22,7 +22,7 @@ class FXmlFile;
 class FNodeDocsGenerator
 {
 public:
-	FNodeDocsGenerator(const TArray<TSubclassOf<UObject>>& OutputFormats)
+	FNodeDocsGenerator(const TArray<UDocGenOutputFormatFactoryBase*>& OutputFormats)
 	:OutputFormats(OutputFormats)
 	{}
 	~FNodeDocsGenerator();
@@ -79,7 +79,7 @@ protected:
 	FString DocsTitle;
 	TSharedPtr<DocTreeNode> IndexTree;
 	TMap<TWeakObjectPtr<UClass>, TSharedPtr<DocTreeNode>> ClassDocTreeMap;
-	TArray<TSubclassOf<UObject>> OutputFormats;
+	TArray<UDocGenOutputFormatFactoryBase*> OutputFormats;
 	FString OutputDir;
 	bool SaveAllFormats(FString const& OutDir, TSharedPtr<DocTreeNode> Document){};
 public:

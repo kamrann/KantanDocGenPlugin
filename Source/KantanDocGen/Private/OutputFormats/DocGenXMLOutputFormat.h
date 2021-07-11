@@ -68,7 +68,7 @@ public:
 };
 
 UCLASS(meta = (DisplayName = "XML"))
-class UDocGenXMLOutputFactory : public UObject, public IDocGenOutputFormatFactory
+class UDocGenXMLOutputFactory : public UDocGenOutputFormatFactoryBase
 {
 	GENERATED_BODY()
 

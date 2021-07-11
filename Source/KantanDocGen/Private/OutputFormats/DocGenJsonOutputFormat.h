@@ -111,8 +111,10 @@ public:
 };
 
 
+
+
 UCLASS(meta = (DisplayName = "JSON"))
-class UDocGenJsonOutputFactory : public UObject, public IDocGenOutputFormatFactory
+class UDocGenJsonOutputFactory : public UDocGenOutputFormatFactoryBase
 {
 	GENERATED_BODY()
 
@@ -123,10 +125,11 @@ public:
 	}
 	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() override
 	{
-		return MakeShared<class DocGenJsonOutputProcessor>();
+		return MakeShared<class DocGenJsonOutputProcessor>(OutputSettings);
 	}
 	virtual FString GetFormatIdentifier() override
 	{
 		return "json";
 	}
+
 };

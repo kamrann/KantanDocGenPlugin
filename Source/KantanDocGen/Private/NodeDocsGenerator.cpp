@@ -433,15 +433,9 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		}
 	}
 
-	for (const auto& OutputFormatFactory : OutputFormats)
+	for (const auto& FactoryObject : OutputFormats)
 	{
-		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
-		const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
-		if (!FactoryInterface)
-		{
-			continue;
-		}
-		auto Serializer = FactoryInterface->CreateSerializer();
+		auto Serializer = FactoryObject->CreateSerializer();
 		NodeDocFile->SerializeWith(Serializer);
 		Serializer->SaveToFile(NodeDocsPath, GetNodeDocId(Node));
 	}
@@ -456,15 +450,9 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 
 bool FNodeDocsGenerator::SaveIndexFile(FString const& OutDir)
 {
-	for (const auto& OutputFormatFactory : OutputFormats)
+	for (const auto& FactoryObject : OutputFormats)
 	{
-		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
-		const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
-		if (!FactoryInterface)
-		{
-			continue;
-		}
-		auto Serializer = FactoryInterface->CreateSerializer();
+		auto Serializer = FactoryObject->CreateSerializer();
 		IndexTree->SerializeWith(Serializer);
 		Serializer->SaveToFile(OutDir, "index");
 	}
@@ -477,15 +465,9 @@ bool FNodeDocsGenerator::SaveClassDocFile(FString const& OutDir)
 	{
 		auto ClassId = GetClassDocId(Entry.Key.Get());
 		auto Path = OutDir / ClassId;
-		for (const auto& OutputFormatFactory : OutputFormats)
+		for (const auto& FactoryObject : OutputFormats)
 		{
-			auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
-			const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
-			if (!FactoryInterface)
-			{
-				continue;
-			}
-			auto Serializer = FactoryInterface->CreateSerializer();
+			auto Serializer = FactoryObject->CreateSerializer();
 			Entry.Value->SerializeWith(Serializer);
 			Serializer->SaveToFile(Path, ClassId);
 		}

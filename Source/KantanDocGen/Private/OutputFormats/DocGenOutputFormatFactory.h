@@ -24,3 +24,30 @@ public:
 	/// @return shared pointer to the instance
 	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() = 0;
 };
+
+USTRUCT(BlueprintType)
+struct FDocGenOutputSettings
+{
+	GENERATED_BODY()
+	
+	/// @brief Overrides the template file used when rendering the output
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FFilePath TemplateFile;
+};
+
+UCLASS(Abstract, EditInlineNew)
+class UDocGenOutputFormatFactoryBase : public UObject, public IDocGenOutputFormatFactory
+{
+	GENERATED_BODY()
+
+public:
+	virtual FString GetFormatIdentifier()
+		PURE_VIRTUAL(IDocGenOutputFormatFactory::GetFormatIdentifier, return FString(););
+	virtual TSharedPtr<struct DocTreeNode::IDocTreeSerializer> CreateSerializer()
+		PURE_VIRTUAL(IDocGenOutputFormatFactory::CreateSerializer, return nullptr;);
+	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor()
+		PURE_VIRTUAL(IDocGenOutputFormatFactory::CreateIntermediateDocProcessor, return nullptr;)
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly) 
+	FDocGenOutputSettings OutputSettings;
+};

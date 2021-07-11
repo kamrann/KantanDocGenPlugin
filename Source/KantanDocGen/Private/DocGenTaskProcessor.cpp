@@ -290,13 +290,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 	EIntermediateProcessingResult TransformationResult = Success;
 	for (const auto& OutputFormatFactory : Current->Task->Settings.OutputFormats)
 	{
-		auto FactoryObject = NewObject<UObject>(GetTransientPackage(), OutputFormatFactory.Get());
-		const auto& FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
-		if (!FactoryInterface)
-		{
-			continue;
-		}
-		auto IntermediateProcessor = FactoryInterface->CreateIntermediateDocProcessor();
+		auto IntermediateProcessor = OutputFormatFactory->CreateIntermediateDocProcessor();
 		EIntermediateProcessingResult Result = IntermediateProcessor->ProcessIntermediateDocs(
 			IntermediateDir, Current->Task->Settings.OutputDirectory.Path, Current->Task->Settings.DocumentationTitle,
 			Current->Task->Settings.bCleanOutputDirectory);

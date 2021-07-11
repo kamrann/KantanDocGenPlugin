@@ -12,6 +12,7 @@ enum EIntermediateProcessingResult : uint8
 
 struct IDocGenOutputProcessor
 {
+	virtual ~IDocGenOutputProcessor() {};
 	virtual EIntermediateProcessingResult ProcessIntermediateDocs(FString const& IntermediateDir,
 																  FString const& OutputDir, FString const& DocTitle,
 																  bool bCleanOutput) = 0;

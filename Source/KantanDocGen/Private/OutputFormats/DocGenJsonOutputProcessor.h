@@ -11,6 +11,7 @@
 
 class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
 {
+	FFilePath TemplatePath;
 	TOptional<FString> GetObjectStringField(const TSharedPtr<FJsonValue> Obj, const FString& FieldName)
 	{
 		const TSharedPtr<FJsonObject>* UnderlyingObject = nullptr;
@@ -113,6 +114,7 @@ class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
 	}
 
 public:
+	DocGenJsonOutputProcessor(FDocGenOutputSettings Settings) : TemplatePath(Settings.TemplateFile) {};
 	virtual EIntermediateProcessingResult ProcessIntermediateDocs(FString const& IntermediateDir,
 																  FString const& OutputDir, FString const& DocTitle,
 																  bool bCleanOutput) override
