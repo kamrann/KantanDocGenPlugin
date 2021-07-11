@@ -4,6 +4,7 @@
 #include "Containers/UnrealString.h"
 #include "DocGenOutputProcessor.h"
 #include "HAL/PlatformFilemanager.h"
+#include "JsonDomBuilder.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Optional.h"
 #include "Serialization/JsonSerializer.h"
@@ -116,8 +117,9 @@ public:
 																  FString const& OutputDir, FString const& DocTitle,
 																  bool bCleanOutput) override
 	{
-		TArray<TSharedPtr<FJsonValue>> StaticFunctionList;
-		TMap<FString, TSharedPtr<FJsonValue>> ClassFunctionList;
+		FJsonDomBuilder::FArray StaticFunctionList;
+		FJsonDomBuilder::FObject ClassFunctionList;
+
 		TSharedPtr<FJsonObject> ParsedIndex = LoadFileToJson(IntermediateDir / "index.json");
 
 		TSharedPtr<FJsonObject> ConsolidatedOutput = InitializeMainOutputFromIndex(ParsedIndex);
@@ -139,7 +141,7 @@ public:
 			else
 			{
 				TOptional<FString> NodeClassID;
-				TArray<TSharedPtr<FJsonValue>> Nodes;
+				FJsonDomBuilder::FArray Nodes;
 				for (const auto& NodeName : NodeNames.GetValue())
 				{
 					const FString NodeFilePath = IntermediateDir / ClassName / "nodes" / NodeName + ".json";
@@ -152,12 +154,10 @@ public:
 						if (FunctionIsStatic)
 						{
 							StaticFunctionList.Add(MakeShared<FJsonValueObject>(NodeJson));
-							// ConsolidatedOutput->GetArrayField("functions").Add(NodeJson);
 						}
 						else
 						{
 							Nodes.Add(MakeShared<FJsonValueObject>(NodeJson));
-							NodeClassID = GetObjectStringField(NodeJson, "class_id");
 						}
 					}
 					else
@@ -168,15 +168,13 @@ public:
 
 				if (NodeClassID.IsSet())
 				{
-					ClassFunctionList.Add(NodeClassID.GetValue(),MakeShared<FJsonValueArray>(Nodes));
+					ClassFunctionList.Set(NodeClassID.GetValue(), Nodes);
 				}
 			}
 		}
 
-		ConsolidatedOutput->SetArrayField("functions", StaticFunctionList);
-		auto ClassList = MakeShared<FJsonObject>();
-		ClassList->Values = ClassFunctionList;
-		ConsolidatedOutput->SetObjectField("classes", ClassList);
+		ConsolidatedOutput->SetField("functions", StaticFunctionList.AsJsonValue());
+		ConsolidatedOutput->SetField("classes", ClassFunctionList.AsJsonValue());
 
 		FString Result;
 		auto JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&Result);

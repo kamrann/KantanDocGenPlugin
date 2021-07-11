@@ -33,6 +33,7 @@ public class KantanDocGen : ModuleRules
 				"LevelEditor",
 				"XmlParser",
 				"Json",
+				"JsonUtilities",
 				"UMG",
 				"Projects",
                 "ImageWriteQueue",
