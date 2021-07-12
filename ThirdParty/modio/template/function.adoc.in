@@ -2,7 +2,7 @@
 {{ heading(function.funcname) }}
 {{ push_heading }}
 
-image::{{function.imgpath}}[]
+image::img/{{last(split(function.imgpath, "/"))}}[]
 
 [source,c++]
 ----

@@ -3,11 +3,13 @@
 #include "Algo/Transform.h"
 #include "Containers/UnrealString.h"
 #include "DocGenOutputProcessor.h"
+#include "HAL/FileManager.h"
 #include "HAL/PlatformFilemanager.h"
 #include "JsonDomBuilder.h"
 #include "KantanDocGenLog.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Optional.h"
+#include "Misc/Paths.h"
 #include "Serialization/JsonSerializer.h"
 
 class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
@@ -132,8 +134,8 @@ class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
 		const FString Args =
 			Quote(TemplatePath.FilePath) + " " + Quote(InJsonPath.FilePath) + " " + Quote(OutAdocPath.FilePath);
 
-		FProcHandle Proc = FPlatformProcess::CreateProc(*(BinaryPath.Path / "convert.exe"), *Args, true, false,
-														false, nullptr, 0, nullptr, PipeWrite);
+		FProcHandle Proc = FPlatformProcess::CreateProc(*(BinaryPath.Path / "convert.exe"), *Args, true, false, false,
+														nullptr, 0, nullptr, PipeWrite);
 
 		int32 ReturnCode = 0;
 		if (Proc.IsValid())
@@ -315,6 +317,14 @@ public:
 
 					if (TSharedPtr<FJsonObject> NodeJson = ParseNodeFile(NodeFilePath))
 					{
+						FString RelImagePath;
+						if (NodeJson->TryGetStringField("imgpath", RelImagePath))
+						{
+							FString SourceImagePath = IntermediateDir / ClassName / "nodes" / RelImagePath;
+							SourceImagePath =
+								IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*SourceImagePath);
+							IFileManager::Get().Copy(*(OutputDir / "img" / FPaths::GetCleanFilename(RelImagePath)), *SourceImagePath, true);
+						}
 						bool FunctionIsStatic = false;
 						NodeJson->TryGetBoolField("static", FunctionIsStatic);
 
@@ -332,7 +342,7 @@ public:
 						return EIntermediateProcessingResult::UnknownError;
 					}
 				}
-				//We don't want classes in our classlist if all their nodes are static
+				// We don't want classes in our classlist if all their nodes are static
 				if (Nodes.Num())
 				{
 					FJsonDomBuilder::FObject ClassObj;

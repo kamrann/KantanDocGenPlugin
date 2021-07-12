@@ -193,7 +193,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 
 	FString IntermediateDir =
 		FPaths::ProjectIntermediateDir() / TEXT("KantanDocGen") / Current->Task->Settings.DocumentationTitle;
-	
+
 	IntermediateDir = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*IntermediateDir);
 
 	auto EnqueueEnumeratorsResult = Async(EAsyncExecution::TaskGraphMainThread, GameThread_EnqueueEnumerators);
@@ -288,6 +288,17 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 	}
 	Async(EAsyncExecution::TaskGraphMainThread,
 		  [this] { Current->Task->NotifySetText(LOCTEXT("DocConversionInProgress", "Converting docs")); });
+
+	if (Current->Task->Settings.bCleanOutputDirectory)
+	{
+		TArray<FString> OutputDirectoryContents;
+		IFileManager::Get().FindFilesRecursive(OutputDirectoryContents, *Current->Task->Settings.OutputDirectory.Path,
+											   TEXT("*"), true, true, true);
+		for (const FString& DirectoryMember : OutputDirectoryContents)
+		{
+			IFileManager::Get().Delete(*DirectoryMember, false, true);
+		}
+	}
 
 	EIntermediateProcessingResult TransformationResult = Success;
 	for (const auto& OutputFormatFactory : Current->Task->Settings.OutputFormats)
