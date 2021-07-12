@@ -193,6 +193,8 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 
 	FString IntermediateDir =
 		FPaths::ProjectIntermediateDir() / TEXT("KantanDocGen") / Current->Task->Settings.DocumentationTitle;
+	
+	IntermediateDir = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*IntermediateDir);
 
 	auto EnqueueEnumeratorsResult = Async(EAsyncExecution::TaskGraphMainThread, GameThread_EnqueueEnumerators);
 

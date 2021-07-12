@@ -16,6 +16,9 @@ Module implementation
 */
 class FKantanDocGenModule : public FDefaultGameModuleImpl
 {
+	void RegisterSettings();
+	void UnregisterSettings();
+
 public:
 	FKantanDocGenModule() {}
 

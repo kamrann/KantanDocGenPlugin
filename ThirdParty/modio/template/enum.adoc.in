@@ -1,0 +1,19 @@
+{{push_heading}}
+{{heading(enum.name, valid_id(enum.typeInfo.typeID))}} 
+
+{{str_or_empty(enum,"/doc/brief/text")}}
+
+{{push_heading}}
+{% if existsIn(enum, "values") %}
+{{heading("Values")}}
+
+[.stretch,stripes=odd,frame=none,cols="20%,~"]
+|===
+## for value in enum.values
+|[.variablename]#{{value.name}}#|{{value.val}}
+## endfor
+|===
+{% endif %}
+
+{{pop_heading}}
+{{pop_heading}}

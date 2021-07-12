@@ -1,0 +1,7 @@
+{% if param.type != "Exec" -%}
+{%- if param.name == "Target" -%}
+|[.paramname]#{{param.name}}#|{{str_or_empty(param, "/type")}}
+{%- else -%}
+|[.paramname]#{{param.name}}#|{{str_or_empty(param, "/description")}}
+{%- endif -%}
+{%- endif %}

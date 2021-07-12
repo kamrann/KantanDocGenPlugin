@@ -67,7 +67,7 @@ public:
 																  bool bCleanOutput) override;
 };
 
-UCLASS(meta = (DisplayName = "XML"))
+UCLASS(meta = (DisplayName = "XML"), Meta = (ShowOnlyInnerProperties))
 class UDocGenXMLOutputFactory : public UDocGenOutputFormatFactoryBase
 {
 	GENERATED_BODY()
@@ -85,4 +85,13 @@ public:
 	{
 		return "xml";
 	}
+
+	virtual void LoadSettings(const FDocGenOutputFormatFactorySettings& Settings) override {}
+
+	virtual FDocGenOutputFormatFactorySettings SaveSettings() override
+	{
+		FDocGenOutputFormatFactorySettings Settings;
+		Settings.FactoryClass = StaticClass();
+		return Settings;
+	};
 };

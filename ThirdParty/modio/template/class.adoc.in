@@ -1,0 +1,29 @@
+'''
+{{push_heading}}
+{{heading(class.class_id)}} 
+
+{{str_or_empty(class,"/doxygen/brief")}}
+
+{{push_heading}}
+
+{% if existsIn(class, "functions") %}
+{{heading("Functions")}}
+
+## for function in class.functions
+{% include "function.adoc.in" %}
+## endfor
+{% endif %}
+
+{% if existsIn(class, "fields") %}
+{{heading("Variables")}}
+
+[.stretch,stripes=odd,frame=none,cols="20%,20%,~"]
+|===
+## for field in class.fields
+{% include "field.adoc.in" %}
+## endfor
+|===
+{% endif %}
+
+{{pop_heading}}
+{{pop_heading}}

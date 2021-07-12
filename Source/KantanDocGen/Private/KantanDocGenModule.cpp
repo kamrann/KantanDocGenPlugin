@@ -5,83 +5,110 @@
 // Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
 #include "KantanDocGenModule.h"
-#include "KantanDocGenLog.h"
-#include "KantanDocGenCommands.h"
 #include "DocGenSettings.h"
 #include "DocGenTaskProcessor.h"
+#include "KantanDocGenCommands.h"
+#include "KantanDocGenLog.h"
 #include "UI/SKantanDocGenWidget.h"
+#include "ISettingsModule.h"
+#include "ISettingsSection.h"
 
+#include "Async/Async.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "HAL/IConsoleManager.h"
+#include "HAL/RunnableThread.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "LevelEditor.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "Framework/Application/SlateApplication.h"
-#include "HAL/RunnableThread.h"
-#include "Async/Async.h"
-
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"
-
 
 IMPLEMENT_MODULE(FKantanDocGenModule, KantanDocGen)
 
 DEFINE_LOG_CATEGORY(LogKantanDocGen);
 
-
 void FKantanDocGenModule::StartupModule()
 {
 	{
 		// Create command list
-		UICommands = MakeShared< FUICommandList >();
+		UICommands = MakeShared<FUICommandList>();
 
 		FKantanDocGenCommands::Register();
 
 		// Map commands
-		FUIAction ShowDocGenUI_UIAction(
-			FExecuteAction::CreateRaw(this, &FKantanDocGenModule::ShowDocGenUI),
-			FCanExecuteAction::CreateLambda([] { return true; })
-		);
+		FUIAction ShowDocGenUI_UIAction(FExecuteAction::CreateRaw(this, &FKantanDocGenModule::ShowDocGenUI),
+										FCanExecuteAction::CreateLambda([] { return true; }));
 
 		auto CmdInfo = FKantanDocGenCommands::Get().ShowDocGenUI;
 		UICommands->MapAction(CmdInfo, ShowDocGenUI_UIAction);
 
 		// Setup menu extension
-		auto AddMenuExtension = [](FMenuBuilder& MenuBuilder)
-		{
+		auto AddMenuExtension = [](FMenuBuilder& MenuBuilder) {
 			MenuBuilder.AddMenuEntry(FKantanDocGenCommands::Get().ShowDocGenUI);
 		};
 
-		auto& LevelEditorModule = FModuleManager::LoadModuleChecked< FLevelEditorModule >("LevelEditor");
-		TSharedRef< FExtender > MenuExtender(new FExtender());
-		MenuExtender->AddMenuExtension(
-			TEXT("FileProject"),
-			EExtensionHook::After,
-			UICommands.ToSharedRef(),
-			FMenuExtensionDelegate::CreateLambda(AddMenuExtension)
-		);
+		auto& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+		TSharedRef<FExtender> MenuExtender(new FExtender());
+		MenuExtender->AddMenuExtension(TEXT("FileProject"), EExtensionHook::After, UICommands.ToSharedRef(),
+									   FMenuExtensionDelegate::CreateLambda(AddMenuExtension));
 		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
+
+		RegisterSettings();
 	}
+}
+
+void FKantanDocGenModule::RegisterSettings()
+{
+#if WITH_EDITOR
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		ISettingsSectionPtr SettingsSection = SettingsModule->RegisterSettings("Project", "Plugins", "Kantan Doc Gen", LOCTEXT("RuntimeSettingsName", "DocGen Settings"),
+										 LOCTEXT("RuntimeSettingsDescription", "Configure documentation generation settings"),
+										 GetMutableDefault<UKantanDocGenSettingsObject>());
+
+		if (SettingsSection.IsValid()) {
+			SettingsSection->OnModified().BindLambda([]()
+			{
+				
+				GetMutableDefault<UKantanDocGenSettingsObject>()->SaveConfig(CPF_Config, *GetMutableDefault<UKantanDocGenSettingsObject>()->GetDefaultConfigFilename());
+				return true;
+
+			});
+		}
+	}
+#endif
+}
+
+void FKantanDocGenModule::UnregisterSettings()
+{
+#if WITH_EDITOR
+	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
+	{
+		SettingsModule->UnregisterSettings("Project", "Plugins", "Kantan Doc Gen");
+	}
+#endif // WITH_EDITOR
 }
 
 void FKantanDocGenModule::ShutdownModule()
 {
 	FKantanDocGenCommands::Unregister();
+	UnregisterSettings();
 }
 
-// @TODO: Idea was to allow quoted values containing spaces, but this isn't possible since the initial console string has
-// already been split by whitespace, ignoring quotes...
+// @TODO: Idea was to allow quoted values containing spaces, but this isn't possible since the initial console string
+// has already been split by whitespace, ignoring quotes...
 inline bool MatchPotentiallyQuoted(const TCHAR* Stream, const TCHAR* Match, FString& Value)
 {
-	while((*Stream == ' ') || (*Stream == 9))
+	while ((*Stream == ' ') || (*Stream == 9))
 		Stream++;
 
-	if(FCString::Strnicmp(Stream, Match, FCString::Strlen(Match)) == 0)
+	if (FCString::Strnicmp(Stream, Match, FCString::Strlen(Match)) == 0)
 	{
 		Stream += FCString::Strlen(Match);
 
 		return FParse::Token(Stream, Value, false);
 	}
-	
+
 	return false;
 }
 
@@ -92,17 +119,17 @@ bool FKantanDocGenModule::IsProcessorRunning()
 
 TFuture<void> FKantanDocGenModule::GenerateDocs(FKantanDocGenSettings const& Settings)
 {
-	if(!Processor.IsValid())
+	if (!Processor.IsValid())
 	{
-		Processor = MakeUnique< FDocGenTaskProcessor >();
+		Processor = MakeUnique<FDocGenTaskProcessor>();
 	}
-	
+
 	Processor->QueueTask(Settings);
 
-	if(!Processor->IsRunning())
+	if (!Processor->IsRunning())
 	{
-		return Async(EAsyncExecution::Thread, [Processor = Processor.Get()](){Processor->Run();});
-		//FRunnableThread::Create(Processor.Get(), TEXT("KantanDocGenProcessorThread"), 0, TPri_BelowNormal);
+		return Async(EAsyncExecution::Thread, [Processor = Processor.Get()]() { Processor->Run(); });
+		// FRunnableThread::Create(Processor.Get(), TEXT("KantanDocGenProcessorThread"), 0, TPri_BelowNormal);
 	}
 	TPromise<void> EmptyPromise;
 	EmptyPromise.SetValue();
@@ -113,24 +140,22 @@ void FKantanDocGenModule::ShowDocGenUI()
 {
 	const FText WindowTitle = LOCTEXT("DocGenWindowTitle", "Kantan Doc Gen");
 
-	TSharedPtr< SWindow > Window =
-		SNew(SWindow)
-		.Title(WindowTitle)
-		.MinWidth(400.0f)
-		.MinHeight(300.0f)
-		.MaxHeight(600.0f)
-		.SupportsMaximize(false)
-		.SupportsMinimize(false)
-		.SizingRule(ESizingRule::Autosized)
-		;
+	TSharedPtr<SWindow> Window = SNew(SWindow)
+									 .Title(WindowTitle)
+									 .MinWidth(400.0f)
+									 .MinHeight(300.0f)
+									 .MaxHeight(600.0f)
+									 .SupportsMaximize(false)
+									 .SupportsMinimize(false)
+									 .SizingRule(ESizingRule::Autosized);
 
-	TSharedRef< SWidget > DocGenContent = SNew(SKantanDocGenWidget);
+	TSharedRef<SWidget> DocGenContent = SNew(SKantanDocGenWidget);
 	Window->SetContent(DocGenContent);
 
-	IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked< IMainFrameModule >("MainFrame");
-	TSharedPtr< SWindow > ParentWindow = MainFrame.GetParentWindow();
+	IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+	TSharedPtr<SWindow> ParentWindow = MainFrame.GetParentWindow();
 
-	if(ParentWindow.IsValid())
+	if (ParentWindow.IsValid())
 	{
 		FSlateApplication::Get().AddModalWindow(Window.ToSharedRef(), ParentWindow.ToSharedRef());
 
@@ -143,7 +168,4 @@ void FKantanDocGenModule::ShowDocGenUI()
 	}
 }
 
-
 #undef LOCTEXT_NAMESPACE
-
-

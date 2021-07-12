@@ -1,0 +1,9 @@
+:toc: left
+:source-highlighter: rouge
+:rouge-style: Modio
+
+{{heading("mod.io SDK Documentation")}}
+
+include::getting-started.adoc[]
+
+{% include "api_ref.adoc.in" %}

@@ -4,9 +4,9 @@
 #include "DocTreeNode.h"
 #include "Json.h"
 #include "Misc/FileHelper.h"
+#include "OutputFormats/DocGenJsonOutputProcessor.h"
 #include "OutputFormats/DocGenOutputFormatFactory.h"
 #include "OutputFormats/DocGenOutputProcessor.h"
-#include "OutputFormats/DocGenJsonOutputProcessor.h"
 #include "Policies/PrettyJsonPrintPolicy.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
@@ -110,10 +110,7 @@ public:
 	};
 };
 
-
-
-
-UCLASS(meta = (DisplayName = "JSON"))
+UCLASS(meta = (DisplayName = "JSON"), Meta = (ShowOnlyInnerProperties), Config = EditorPerProjectUserSettings)
 class UDocGenJsonOutputFactory : public UDocGenOutputFormatFactoryBase
 {
 	GENERATED_BODY()
@@ -125,11 +122,97 @@ public:
 	}
 	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() override
 	{
-		return MakeShared<class DocGenJsonOutputProcessor>(OutputSettings);
+		TOptional<FFilePath> TemplateOverride;
+		if (bOverrideTemplatePath)
+		{
+			TemplateOverride = TemplatePath;
+		}
+
+		TOptional<FDirectoryPath> BinaryOverride;
+		if (bOverrideBinaryPath)
+		{
+			BinaryOverride = BinaryPath;
+		}
+		TOptional<FFilePath> RubyOverride;
+		if (bOverrideRubyPath)
+		{
+			RubyOverride = RubyPath;
+		}
+		return MakeShared<DocGenJsonOutputProcessor>(TemplateOverride, BinaryOverride, RubyOverride);
 	}
 	virtual FString GetFormatIdentifier() override
 	{
 		return "json";
 	}
 
+	virtual void LoadSettings(const FDocGenOutputFormatFactorySettings& Settings)
+	{
+		if (Settings.SettingValues.Contains("template"))
+		{
+			TemplatePath.FilePath = Settings.SettingValues["template"];
+			if (Settings.SettingValues.Contains("overridetemplate"))
+			{
+				bOverrideTemplatePath = (Settings.SettingValues["overridetemplate"] == "true");
+			}
+		}
+		if (Settings.SettingValues.Contains("bindir"))
+		{
+			BinaryPath.Path = Settings.SettingValues["bindir"];
+			if (Settings.SettingValues.Contains("overridebindir"))
+			{
+				bOverrideBinaryPath = (Settings.SettingValues["overridebindir"] == "true");
+			}
+		}
+		if (Settings.SettingValues.Contains("ruby"))
+		{
+			RubyPath.FilePath = Settings.SettingValues["ruby"];
+			if (Settings.SettingValues.Contains("overrideruby"))
+			{
+				bOverrideRubyPath = (Settings.SettingValues["overrideruby"] == "true");
+			}
+		}
+	}
+
+	virtual FDocGenOutputFormatFactorySettings SaveSettings()
+	{
+		FDocGenOutputFormatFactorySettings Settings;
+		if (bOverrideTemplatePath)
+		{
+			Settings.SettingValues.Add("overridetemplate", "true");
+		}
+		Settings.SettingValues.Add("template", TemplatePath.FilePath);
+		
+		if (bOverrideBinaryPath)
+		{
+			Settings.SettingValues.Add("overridebindir", "true");
+		}
+		Settings.SettingValues.Add("bindir", BinaryPath.Path);
+		
+		if (bOverrideRubyPath)
+		{
+			Settings.SettingValues.Add("overrideruby", "true");
+		}
+		Settings.SettingValues.Add("ruby", RubyPath.FilePath);
+		
+		Settings.FactoryClass = StaticClass();
+		return Settings;
+	};
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool bOverrideTemplatePath = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (EditCondition = "bOverrideTemplatePath"))
+	FFilePath TemplatePath;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool bOverrideBinaryPath = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (EditCondition = "bOverrideBinaryPath"))
+	FDirectoryPath BinaryPath;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool bOverrideRubyPath = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, meta = (EditCondition = "bOverrideRubyPath"))
+	FFilePath RubyPath;
 };

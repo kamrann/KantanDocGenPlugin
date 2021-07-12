@@ -10,6 +10,18 @@ class UDocGenOutputFormatFactory : public UInterface
 	GENERATED_BODY()
 };
 
+USTRUCT()
+struct FDocGenOutputFormatFactorySettings
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TMap<FString, FString> SettingValues;
+	UPROPERTY()
+	UClass* FactoryClass;
+};
+
+
 class KANTANDOCGEN_API IDocGenOutputFormatFactory
 {
 	GENERATED_BODY()
@@ -23,31 +35,28 @@ public:
 	/// @brief Constructs an instance of an object implementing the post-processing interface for document generation
 	/// @return shared pointer to the instance
 	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor() = 0;
+	/// @brief Loads custom settings for this output format
+	/// @param Settings Struct containing a map of strings to deserialize
+	virtual void LoadSettings(const FDocGenOutputFormatFactorySettings& Settings) = 0;
+
+	virtual FDocGenOutputFormatFactorySettings SaveSettings() = 0;
 };
 
-USTRUCT(BlueprintType)
-struct FDocGenOutputSettings
-{
-	GENERATED_BODY()
-	
-	/// @brief Overrides the template file used when rendering the output
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FFilePath TemplateFile;
-};
 
-UCLASS(Abstract, EditInlineNew)
+UCLASS(Abstract, DefaultToInstanced, PerObjectConfig, EditInlineNew, Meta = (ShowOnlyInnerProperties),
+	   Config = EditorPerProjectUserSettings)
 class UDocGenOutputFormatFactoryBase : public UObject, public IDocGenOutputFormatFactory
 {
 	GENERATED_BODY()
 
 public:
+
 	virtual FString GetFormatIdentifier()
 		PURE_VIRTUAL(IDocGenOutputFormatFactory::GetFormatIdentifier, return FString(););
 	virtual TSharedPtr<struct DocTreeNode::IDocTreeSerializer> CreateSerializer()
 		PURE_VIRTUAL(IDocGenOutputFormatFactory::CreateSerializer, return nullptr;);
 	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor()
 		PURE_VIRTUAL(IDocGenOutputFormatFactory::CreateIntermediateDocProcessor, return nullptr;)
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly) 
-	FDocGenOutputSettings OutputSettings;
+	virtual void LoadSettings(const FDocGenOutputFormatFactorySettings& Settings) PURE_VIRTUAL(IDocGenOutputFormatFactory::LoadSettings,);
+	virtual FDocGenOutputFormatFactorySettings SaveSettings() PURE_VIRTUAL(IDocGenOutputFormatFactory::SaveSettings, return {};);
 };

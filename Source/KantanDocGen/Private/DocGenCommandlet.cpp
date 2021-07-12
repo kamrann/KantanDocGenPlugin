@@ -9,6 +9,7 @@
 #include "Interfaces/ISlateRHIRendererModule.h"
 #include "KantanDocGenModule.h"
 #include "Modules/ModuleManager.h"
+#include "OutputFormats/DocGenOutputFormatFactory.h"
 
 UDocGenCommandlet::UDocGenCommandlet()
 {
@@ -107,12 +108,6 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 	{
 		Settings.OutputDirectory.Path = ParsedParams["outputdir"];
 	}
-	FDocGenOutputSettings FactorySettings;
-
-	if (ParsedParams.Contains("template"))
-	{
-		FactorySettings.TemplateFile.FilePath = ParsedParams["template"];
-	}
 
 	if (ParsedParams.Contains("formats"))
 	{
@@ -125,10 +120,11 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 			for (const auto& Factory : OutputFormatFactories)
 			{
 				auto FactoryObject = NewObject<UDocGenOutputFormatFactoryBase>(GetTransientPackage(), Factory);
-				
+
 				if (FactoryObject->GetFormatIdentifier() == Value)
 				{
-					FactoryObject->OutputSettings = FactorySettings;
+					
+					FactoryObject->LoadSettings({ParsedParams, Factory});
 					Settings.OutputFormats.Add(FactoryObject);
 				}
 			}

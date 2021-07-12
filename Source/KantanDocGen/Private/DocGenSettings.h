@@ -11,7 +11,9 @@
 #include "GameFramework/Actor.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
-#include "OutputFormats/DocGenOutputFormatFactory.h"
+#include "OutputFOrmats/DocGenOutputFormatFactory.h"
+#include "Serialization/ObjectAndNameAsStringProxyArchive.h"
+#include "UObject/Class.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/UnrealType.h"
 
@@ -52,8 +54,11 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Class Search", AdvancedDisplay)
 	TSubclassOf<UObject> BlueprintContextClass;
 
-	UPROPERTY(Instanced, Export, EditAnywhere,Category = "Output")
-	TArray<UDocGenOutputFormatFactoryBase*> OutputFormats;
+	UPROPERTY()
+	TArray<FDocGenOutputFormatFactorySettings> OutputFormatsSerializationData;
+
+	UPROPERTY(Instanced, Export, EditAnywhere, Category = "Output")
+	TArray<class UDocGenOutputFormatFactoryBase*> OutputFormats;
 
 	UPROPERTY(EditAnywhere, Category = "Output")
 	bool bCleanOutputDirectory;
@@ -86,11 +91,10 @@ public:
 
 		if (!bInitialized)
 		{
+			DefaultSettings->LoadConfig();
 			InitDefaults(DefaultSettings);
-
 			bInitialized = true;
 		}
-
 		return DefaultSettings;
 	}
 
@@ -111,8 +115,37 @@ public:
 			CDO->Settings.BlueprintContextClass = AActor::StaticClass();
 		}
 	}
+	void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override
+	{
+		Super::PostEditChangeProperty(PropertyChangedEvent);
+		Settings.OutputFormatsSerializationData.Empty();
+		for (const auto& OutputFormat : Settings.OutputFormats)
+		{
+			if (OutputFormat)
+			{
+				Settings.OutputFormatsSerializationData.Add(OutputFormat->SaveSettings());
+			}
+		}
+	}
+
+	void PostInitProperties() override
+	{
+		Super::PostInitProperties();
+		Settings.OutputFormats.Empty();
+		for (const auto& FormatData : Settings.OutputFormatsSerializationData)
+		{
+			UDocGenOutputFormatFactoryBase* RecreatedFactory =
+				NewObject<UDocGenOutputFormatFactoryBase>(this, FormatData.FactoryClass);
+			if (RecreatedFactory)
+			{
+				RecreatedFactory->LoadSettings(FormatData);
+				Settings.OutputFormats.Add(RecreatedFactory);
+
+			}
+		}
+	}
 
 public:
-	UPROPERTY(EditAnywhere, Config, Category = "Kantan DocGen", Meta = (ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, Export, config, Category = "Kantan DocGen", Meta = (ShowOnlyInnerProperties))
 	FKantanDocGenSettings Settings;
 };

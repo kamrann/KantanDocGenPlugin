@@ -38,7 +38,8 @@ public class KantanDocGen : ModuleRules
 				"Projects",
                 "ImageWriteQueue",
 				"RenderCore",
-				"SlateRHIRenderer", 
+				"SlateRHIRenderer",
+				"Settings"
             }
         );
 	}

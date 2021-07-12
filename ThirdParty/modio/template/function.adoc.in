@@ -1,0 +1,81 @@
+{{ push_heading }}
+{{ heading(function.funcname) }}
+{{ push_heading }}
+
+image::{{function.imgpath}}[]
+
+[source,c++]
+----
+{{ function.rawsignature }}
+----
+{% if existsIn(function, "doxygen") %}
+
+{{str_or_empty(function, "/doxygen/brief")}}
+
+{% if existsIn(function.doxygen, "requires")-%}
+{{heading("Requirements")}}
+{% if isString(function.doxygen.requires) %}
+* _{{trim(function.doxygen.requires)}}_
+{% else %}
+## for requirement in function.doxygen.requires
+* _{{trim(requirement)}}_
+## endfor
+{% endif %}
+{% endif %}
+
+{% if existsIn(function, "inputs") or existsIn(function,"outputs") -%}
+{{heading("Parameters")}}
+
+[.stretch,stripes=odd,frame=none, cols="25%,~"]
+|===
+
+{% if isArray(function.inputs) %}
+## for param in function.inputs
+{% include "nodeparam.adoc.in" %} 
+## endfor
+{% else %}
+## for paramname, param in function.inputs
+{% include "nodeparam.adoc.in" %} 
+## endfor
+{% endif %}
+
+{% if isArray(function.outputs) %}
+## for param in function.outputs
+{% include "nodeparam.adoc.in" %} 
+## endfor
+{% else %}
+## for paramname, param in function.outputs
+{% include "nodeparam.adoc.in" %} 
+## endfor
+{% endif %}
+|===
+{%- endif %}
+
+{% if existsIn(function.doxygen, "return") -%}
+{{heading("Returns")}}
+
+{{str_or_empty(function, "/doxygen/return")}}
+
+{%- endif %}
+{% if existsIn(function.doxygen, "error") or existsIn(function.doxygen, "errorcategory")%}
+{{heading("Error Values")}}
+
+[.stretch,stripes=odd,frame=none, cols="25%,~"]
+|===
+
+{% if existsIn(function.doxygen, "error") %}
+## for err in function.doxygen.error
+|{{trim(err)}}
+## endfor
+{% endif -%}
+{%- if existsIn(function.doxygen, "errorcategory") %}
+## for category in function.doxygen.errorcategory.text
+|{{trim(category)}}
+## endfor
+{% endif %}
+|===
+{% endif %}
+{% endif %}
+
+{{pop_heading}}
+{{pop_heading}}

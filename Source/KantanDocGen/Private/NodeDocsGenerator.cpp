@@ -321,7 +321,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		NodeFullTitle = NodeFullTitle.Left(TargetIdx).TrimEnd();
 	}
 	NodeDocFile->AppendChildWithValueEscaped("fulltitle", NodeFullTitle);
-
+	
 	FString NodeDesc = Node->GetTooltipText().ToString();
 	TargetIdx = NodeDesc.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
 	if (TargetIdx != INDEX_NONE)
@@ -338,6 +338,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		auto Func = FuncNode->GetTargetFunction();
 		if (Func)
 		{
+			NodeDocFile->AppendChildWithValueEscaped("funcname", FuncNode->GetFunctionName().ToString());
 			NodeDocFile->AppendChildWithValueEscaped("rawcomment", Func->GetMetaData(TEXT("Comment")));
 			NodeDocFile->AppendChildWithValue("static", Func->HasAnyFunctionFlags(FUNC_Static) ? "true" : "false");
 
