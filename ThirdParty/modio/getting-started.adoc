@@ -1,206 +1,139 @@
 == Getting started
 
-=== Installation
+=== Installation and configuration
 
-[caption=2.0.0-alpha] 
-NOTE: Source archive, header configuration. Preliminary static/dynamic library support
+Simply extract the plugin archive to the `Plugins/` directory of your project.  
 
-After the SDK has been extracted to the external dependencies of your project, add the following folders to your include path
+Enable the plugin in the Unreal Engine settings:
 
-* modio
-* ext
-* <platform directories>
+image::img/plugin_window.png[]
 
-Update `modio/ModioGeneratedVariables.h`
-
-* `MODIO_API_KEY` and `MODIO_EXAMPLES_API_KEY` to your API key
-* `MODIO_EXAMPLES_GAME_ID` to your game id
-* `MODIO_DEFAULT_SERVER` to `Modio::Environment::Test` if you are running on the test environment where your game doesn't show up for anyone else
-
-[caption=2.0.0-rc] 
-NOTE: CMake library, consumed with add_subdirectory
-
-[caption=TBA] 
-NOTE: CMake exported target
+Once this is done, you can configure the plugin and get started.
 
 '''
 
-=== Requirements
+=== Configuration
 
-[caption=2.0.0-alpha] 
-NOTE: C++17 compiler, windows
+The plugin requires some configuration information to behave correctly. You can access the configuration settings in the Project Settings window:
 
-[caption=TBA] 
-NOTE: Backport to C++14 based on demand and platform support
+image::img/plugin_settings.png[]
+
+The settings have the following parameters:
+
+[.stretch,stripes=odd,frame=none, cols="25%,~"]
+|===
+|[.paramname]#Game Id#|Your mod.io-provided Game Id for the target environment (Live, or Test)
+|[.paramname]#API Key#|Your mod.io-provided Game Id for the target environment (Live, or Test)
+|[.paramname]#Environment#|Are you targeting the production/live environment or the private/test environment?
+|[.paramname]#Log Level#|The default logging level to use. Messages with a lower log level will be silently discarded.
+
+|===
 
 '''
 
-=== SDK structure and concepts
+=== Plugin structure and concepts
 
-==== Flat API
-The mod.io SDK has a fairly simple overall structure which primarily consists of a flat interface of free functions. These broadly have the following categories:
+==== ModioSubsystem
+The mod.io UE4 plugin consumes our native SDK internally, and it's public API is similar. Where the native SDK exposes a number of free functions within the `Modio` namespace, for ease of integration we have wrapped those in a https://docs.unrealengine.com/4.26/en-US/ProgrammingAndScripting/Subsystems/[Subsystem].
 
-* SDK management (initialization, teardown, event loop)
+The subsystem's lifetime is automatically managed by the engine for you, and provides a convenient way to access the plugin functionality, which is broadly grouped into the following categories:
+
+* Plugin management (initialization, teardown, event loop)
 * User authentication
 * Mod browsing and querying
-* Mod management (subscription, unsubscription)
+* Mod management (subscription, unsubscription, and installation)
+
 
 ==== Value objects
-All data returned by the free functions is presented using a small set of classes, containing information such as:
+All data returned by the plugin is presented using a small set of USTRUCTs, containing information such as:
 
 * Details for mods that are available for installation
 * Progress information about mods being installed
 * Details, and load paths, for installed mods
 
-These objects will be returned to you by the SDK by-value, so if you want to hold onto them once you've shut down the SDK you can do so, and unlike interfaces that return values via interface pointers you do not need to call `dispose`, `release` or some other management function when you are done with them.
-This allows you, for instance, to initialize the SDK, query the installed mods, and retain that list even after shutting down the SDK again so you can stop running the SDK's event loop. 
+As structs, these are value types, so if you want to hold onto them once you've shut down the plugin you can do so, and they do not expose any methods that 'talk back' to the Subsystem, so their methods are safe to call.
+This allows you, for instance, to initialize the plugin, query the installed mods, and retain that list even after shutting down the plugin again so you can stop running the plugin's event loop. 
 
 ==== UTF-8 guarantees
 
-The SDK uses UTF8 for all strings, stored in `std::string`, as does the mod.io REST API. 
+The plugin uses UTF8 for all strings, as does the mod.io REST API. 
 
 ==== Thread-safety guarantees
 
 [caption=2.0.0-alpha] 
-NOTE: The mod.io SDK is currently NOT thread-safe. All calls to SDK functions should be made on the same thread.
+NOTE: The mod.io plugin is currently NOT thread-safe. All calls to plugin functions should be made on the game thread.
 
-[caption=2.0.0-rc] 
-NOTE: The mod.io SDK is thread-safe for all calls EXCEPT <<RunPendingHandlers>>. See <<Maintaining the SDK event loop>> below for further information. 
+[caption=FUTURE RELEASE] 
+NOTE: The mod.io plugin will be thread-safe for all calls EXCEPT <<RunPendingHandlers>>. See <<Maintaining the plugin event loop>> below for further information. 
 
-NOTE: The SDK event loop, any internal SDK event handlers, and all callbacks you provide to the mod.io SDK, will be run on the thread invoking <<RunPendingHandlers>>.
+NOTE: The plugin event loop, any internal event handlers, and all callbacks you provide to the mod.io plugin, will be run on the thread invoking <<RunPendingHandlers>>.
 
 ==== Non-blocking, asynchronous interface
 
-The SDK communicates with the mod.io servers, the filesystem on the device you're using, and platform-provided services for authentication. All of these may not return results immediately, so a large number of the SDK's public methods are non-blocking and asynchronous.
+The plugin communicates with the mod.io servers, the filesystem on the device you're using, and platform-provided services for authentication. All of these may not return results immediately, so many functions provided by the ModioSubsystem are non-blocking and asynchronous.
 
 NOTE: All async methods in the public API end with the suffix `Async`. 
 
 ===== Callback conventions
-All of these asynchronous methods take a `std::function`-derived callback, which will be invoked exactly once with the results of the requested operation. 
+All of these asynchronous methods take a delegate as an argument, which will be invoked *exactly once* with the results of the requested operation. 
 Every async callback takes a <<ErrorCode>> as its first parameter, with any optional results wrapped in <<'Modio::Optional'>> so that you can easily check if a result is valid or not. 
 
-Any return values provided to your callback are passed-by-value - the SDK doesn't expect you to have to call `release` or otherwise free up resources given to you. 
+Any return values provided to your callback are passed-by-value - the plugin doesn't expect you to have to call `release` or otherwise free up resources given to you. 
 
-===== Maintaining the SDK event loop
+NOTE: Even if the plugin is shut down while asynchronous operations are in-flight, your delegates will still be invoked *exactly once*. In this instance, the <<ErrorCode>> the delegate receives will indicate a cancellation state, and you should check for this as part of your error handling in your delegates.
 
-In order to provide a non-blocking implementation, the SDK operates an internal event loop. This event loop, will only ever run on the thread which calls <<RunPendingHandlers>>.
+===== Maintaining the plugin event loop
 
-NOTE: This means that if you stop calling <<RunPendingHandlers>>, any pending asynchronous API methods you have called will not complete and their associated callbacks will not be invoked, nor will the internal data allocated for those operations be freed unless you call <<Shutdown>>.
+In order to provide a non-blocking implementation, the plugin operates an internal event loop. This event loop, will only ever run on the thread which calls <<RunPendingHandlers>>.
 
-==== Cross-platform support in the public API
+NOTE: This means that if you stop calling <<RunPendingHandlers>>, any pending asynchronous API methods you have called will not complete and their associated callbacks will not be invoked, nor will the internal data allocated for those operations be freed.
 
-Wherever the public API relies on a platform-specific object, such as a `User`, the public API uses type aliases that are defined by the platform modules. 
 
-[caption=TBA] 
-NOTE: Separate section in API reference documentation for platform-specific type aliases. Scan platform module headers, use adoc include directive to pull in 
+==== User Sessions
 
-===== User Sessions
-
-The mod.io SDK runs on a per-platform-user basis. If you are using the SDK on a platform that requires user switching support, it is a requirement that you call <<Shutdown>> and then re-initialize the SDK with <<InitializeAsync>> with the new platform-specific user handle.
+The mod.io plugin runs on a per-platform-user basis. If you are using the plugin on a platform that requires user switching support, it is a requirement that you call <<ShutdownAsync>> and then re-initialize the plugin with <<InitializeAsync>> with the new platform-specific user handle.
 
 ==== Error handling
 
-Many functions in the SDK's public interface either return, or provide as the first parameter in a callback, a <<ErrorCode>> value. This is essentially a numeric error code with a category and an associated string message. 
+Many functions in the plugin interface either return, or provide as the first parameter to your delegate, a <<ErrorCode>> value. This is essentially an opaque wrapper around a numeric error code with a category and an associated string message. 
 
-The SDK doesn't attempt to predict what your error-handling logic or requirements are: instead, we return the error code to you so you can decide what to do. For instance, if you call a function and receive an error code `ec == Modio::HttpError::CannotOpenConnection`, do you want to close down the SDK? Retry again according to custom back-off logic? That decision is left to the consuming application. 
+The plugin doesn't attempt to predict what your error-handling logic or requirements are: instead, we return the error code to you so you can decide what to do. For instance, if you call a function and receive an error code matching a network error condition, do you want to close down the plugin? Retry again according to custom back-off logic? That decision is left to the consuming application. 
 
-For more details on the error codes and how to inspect their values, please see <<SDK quick-start: Error Handling>> and <<ErrorCode>>.
+For more details on the error codes and how to inspect their values, please see <<Plugin quick-start: Error Handling>> and <<ErrorCode>>.
 
 '''
 
-=== SDK quick-start: Initialization and Teardown
+=== Plugin quick-start: Initialization and Teardown
 
-As mentioned in <<Maintaining the SDK event loop>>, the SDK's internal event loop requires care and attention in the form of <<RunPendingHandlers>>.
+As mentioned in <<Maintaining the plugin event loop>>, the plugin's internal event loop requires care and attention in the form of <<RunPendingHandlers>>.
 For best performance it should be called at least once per frame, so it should either go into your project's main loop or into a `tick`-style function on an appropriate controller/manager object. 
 
-[source,cpp]
-----
-while(bGameIsRunning)
-{
-    Modio::RunPendingHandlers();
-    //other stuff
-}
-----
+image::img/run_pending_handlers.png[]
 
-When you are ready to initialize the SDK for the current user, you'll need to call <<InitializeAsync>>, passing in your product's mod.io ID, your API key, the platform-specific user handle where appropriate, and a callback/handler so you know when the SDK is initialized correctly. 
+When you are ready to initialize the plugin for the current user, you'll need to call <<InitializeAsync>>, passing in an instance of `FModioInitializeOptions`, and a delegate so you know when the plugin is initialized correctly. 
 
-[source,cpp]
-----
+image::img/initasync_customoptions.png[]
 
-//represents some external state so we know that the SDK is good to go - could be anything
-Modio::optional<bool> SDKInitialized;
+If you have configured your game's API Key, ID and environment via the Plugin Settings window as in <<Configuration>>, you can use the convenience function <<Get Project Initialize Options>>:
 
-Modio::InitializeOptions Options;
-Options.APIKey = "YOUR_API_KEY";
-Options.GameEnvironment = Modio::Environment::Test;
-Options.GameID = Modio::GameID(YOUR_GAME_ID);
-Options.User = CurrentUser;
-
-Modio::InitializeAsync(Options, [&SDKInitialized](Modio::ErrorCode ec) {
-    if (ec)
-    {
-        SDKInitialized = false;
-    }
-    else
-    {
-        SDKIntialized = true;
-    }
-});
-
-//Somewhere else in our code
-if (SDKIntitialized.has_value()) //Has the callback been invoked?
-{
-    if (SDKInitialized.value()) //SDK init OK
-    {
-        //make other calls to the SDK, show UI to display mod browser, something else
-    }
-}
-
-----
+image::img/initasync_getoptions.png[]
 
 .Notes
-* Using a Modio::Optional gives us a tri-state variable so we know
-** If the SDK is still initializing (the optional is empty)
-** If the SDK initialization has returned, but with an error (the optional contains a false value)
-** If the SDK initialized successfully (the optional contains a true value)
-    Of course you could use two bools, or a bool and a <<ErrorCode>>, or something else if you want
-+
-* By convention you'll see these code examples pass in lambda functions as callback handlers, but you can use anything convertible to `std::function` with the appropriate signature. 
-* The error-handling in this sample is deliberately kept brief. See <<SDK quick-start: Error Handling>> for more information on error handling. 
-* Alternatively, you can always perform calls to other functions, such as something that shows your mod browser UI implementation, directly in the callback. The primary caveat to doing much processing here is that you'll be running in the context of, and therefore blocking, the thread running the callback, which is the thread running <<RunPendingHandlers>>.
+* The error-handling in this sample has been omitted. See <<Plugin quick-start: Error Handling>> for more information on error handling. 
 
 
-Doing the reverse and shutting down the SDK is equally simple:
-[source, cpp]
-----
-// Synchronous
+Doing the reverse and shutting down the plugin is equally simple:
 
-Modio::Shutdown();
+image::img/shutdownasync_runhandlers.png[]
 
-// Async
-
-//State variable, stored in some valid scope
-bool SDKShutdownComplete = false;
-
-Modio::ShutdownAsync([](Modio::ErrorCode ec)
-{
-    SDKShutdownComplete = true;
-});
-
-while(!SDKShutdownComplete)
-{
-    Modio::RunPendingHandlers();
-}
-
-----
 
 .Notes
-* You will need to continue to call <<RunPendingHandlers>> while the async shutdown is in progress to allow for intermediate handlers to finish running.
+* You will need to continue to call <<RunPendingHandlers>> while the async shutdown is in progress to allow for intermediate handlers to finish running, and for your in-flight calls to return with an error code indicating cancellation.
 
 
 '''
 
-=== SDK quick-start: User Authentication
+=== Plugin quick-start: User Authentication
 
 Mod.io provides two ways for users to create an account to use the service: email authentication, and single sign on (SSO) through an external authentication partner. The flow for these is slightly different.
 
@@ -213,29 +146,32 @@ Email authentication involves:
     2. The user retrieving the one-time code mod.io sends to that address (externally to your application)
     3. Submitting the code provided by the user
 
-[source, cpp]
-----
-Modio::RequestEmailAuthCodeAsync(Modio::EmailAddress(UserProvidedEmailAddress), [](Modio::ErrorCode ec)
-{
-    //Handle errors if ec is truthy
-});
+===== Submitting an email address
 
-// some time later, after the user inputs their authentication code
+To request an email authentication code be sent to a user's email address, use the <<Request Email Auth Code Async>> node.
 
-Modio::AuthenticateUserEmailAsync(Modio::EmailAuthCode(UserProvidedAuthCode), [](Modio::ErrorCode ec) {
-		if (ec)
-		{
-            //Authentication failure, inspect ec to determine what information to provide to the end user
-		}
-		else
-		{   
-            //User is now authenticated and able to manage their subscriptions via SDK calls
-		}
-	});
+image::img/request_email_auth_code.png[]
 
-----
+Once this is done, prompt the user to check their email address and provide them with a way to enter the code that was sent to them. 
+
+This code can then be sent to the mod.io server to finalize the user's authentication. 
+
+===== Submitting an email authentication code
+
+Submitting an email authentication code is very similar to the process for requesting the code, and is done by calling <<Authenticate User Email Async>>.
+
+image::img/authenticate_user_email.png[]
+
+Once this completes successfully, the user is authenticated and you can then manage the user's subscriptions. 
 
 ==== SSO/External authentication
+
+[caption=2.0.0-alpha] 
+NOTE: Blueprint support for the external authentication flow is WIP but can be invoked from C++
+
+[caption=2.0.0-public]
+NOTE: Blueprint support for external authentication will be fully supported when the plugin leaves alpha
+
 
 Mod.io features single sign on authentication from a number of external providers. This currently includes:
 
@@ -255,84 +191,25 @@ This means the external authentication flow is the following:
     3. If the user clicks the OK/affirmative button on your screen displaying the terms of use, repeat the call in step 1 but setting `AuthenticationParams::bUserHasAcceptedTerms` to *true*
     4. Check the error code in the callback - a false-y error code indicates that authentication was successful, and users can now install and manage mods and subscriptions.
 
-[source, cpp]
-----
-UserParams.bUserHasAcceptedTerms = false;
-Modio::AuthenticateUserExternalAsync(UserParams,Provider,[Provider, Language](Modio::ErrorCode ec)
-{
-    if (ec)
-    {
-        if (ec == Modio::ApiError::UserNoAcceptTermsOfUse)
-        {
-            //We need to display the terms of use to the user
-            Modio::GetTermsOfUseAsync(Provider, Language, [](Modio::ErrorCode ec, Modio::Optional<Modio::Terms> Terms)
-            {
-                if (ec)
-                {
-                    //something went wrong fetching the terms, inspect ec to decide what to do
-                }
-                else
-                {
-                    //Display the terms of use to the user, remember not to block in the callback here!
-                    NonBlockingFunctionThatDisplaysTheTermsOfUse(Terms);
-                }
-            });
-        }
-    }
-});
-
-//Later sometime, when your user clicks accept on the terms of use
-UserParams.bUserHasAcceptedTerms = true;
-Modio::AuthenticateUserExternalAsync(UserParams,Provider,[](Modio::ErrorCode ec){/* ... */});
-
-----
 
 '''
 
-=== SDK quick-start: Browsing available mods
+=== Plugin quick-start: Browsing available mods
 
-Now that you've followed the instructions in <<SDK quick-start: Initialization and Teardown>> you can begin to query the available mods for information you can display to your end users. The primary way this is done is through <<ListAllModsAsync>>.
+Now that you've followed the instructions in <<Plugin quick-start: Initialization and Teardown>> you can begin to query the available mods for information you can display to your end users. The primary way this is done is through <<ListAllModsAsync>>.
 
-[source,cpp]
-----
-
-Modio::ListAllModsAsync(Modio::FilterParams(), [](Modio::ErrorCode ec, Modio::Optional<Modio::ModInfoList> Results) 
-{
-    if (ec)
-    {
-        //Error handling
-    }
-    else
-    {
-        for (Modio::ModInfo& CurrentModProfile : *Results)
-        {
-            std::cout << CurrentModProfile.ProfileName;
-        }
-    }
-});
-----
+image::img/list_all_mods.png[]
 
 You'll note that <<ListAllModsAsync>> takes a <<FilterParams>> object as its first parameter. The default state of this object is set to ask for the first 100 results (the maximum number returnable in a query), sorting by mod ID.
 
-To search for a specific query string, sort in a different order, or combine different filters, you can pass in a FilterParams object like this:
+To search for a specific query string, sort in a different order, or combine different filters, you can use a FilterParams object like this:
 
-[source,cpp]
-----
-//Search queries
-Modio::ListAllModsAsync(Modio::FilterParams().NameContains("SomeString"), ...)
-//Sorting
-Modio::ListAllModsAsync(Modio::FilterParams().SortBy(Modio::FilterParams::SortFieldType::DownloadsToday, Modio::SortDirection::Ascending), ...)
+image::img/list_all_mods_filter.png[]
 
-//Ranged results - starting at index 20, return 10 results
-Modio::ListAllModsAsync(Modio::FilterParams.NameContains("Your Query").IndexedResults(20, 10), ...)
-
-//Ranged results - return the 20th page of 10 results
-Modio::ListAllModsAsync(Modio::FilterParams.NameContains("Your Query").PagedResults(20, 10), ...)
-----
 
 '''
 
-=== SDK quick-start: Mod subscriptions and management
+=== Plugin quick-start: Mod subscriptions and management
 
 So you've shown the user some mods based on a query they've submitted through your UI, and the user has picked one that they'd like to install. How do you begin the installation process, and once the mod is installed how do you know what files to be loading into memory?
 
@@ -342,136 +219,72 @@ A user indicates that they want to have a mod installed by 'subscribing' to it. 
 
 When a user 'unsubscribes' to a mod, they're indicating they'd like to have that mod uninstalled from any device they're logged in on. 
 
-The API for managing subscriptions is simple and consists of a call to either <<SubscribeToModAsync>> or <<UnsubscribeFromModAsync>> with the ID of the mod in question and a callback to receive the status of the request:
+The API for managing subscriptions is simple and consists of a call to either <<SubscribeToModAsync>> or <<UnsubscribeFromModAsync>> with the ID of the mod in question and a delegate to receive the status of the request:
 
-[source,cpp]
-----
-//Subscription
-Modio::SubscribeToModAsync(SomeModId, [](Modio::ErrorCode ec)
-{
-    if (ec)
-    {
-        //Didn't subscribe, show message to user
-    }
-    else
-    {
-        //Successfully subscribed on the server
-    }
-});
+image::img/subscribe_to_mod.png[]
 
-//Unsubscription
-Modio::UnsubscribeFromModAsync(SomeModId, [](Modio::ErrorCode ec)
-{
-    if (ec)
-    {
-        //Couldn't unsub, show error 
-    }
-    else
-    {
-        //Server records unsubscription, mod won't be installed or available for this user any longer
-    }
-});
 
-----
+image::img/unsubscribe_from_mod.png[]
+
 
 ===== External subscription changes
 
-Because the mod.io service is available as a website as well as integration within your applications, users can manage their subscriptions (and therefore installations) outside of your application. This means that we need to be able to query the server for any external subscription changes. To do this, you will need to use <<FetchExternalUpdatesAsync>> to synchronise the server state with the SDK's local subscriptions:
+Because the mod.io service is available as a website as well as integration within your applications, users can manage their subscriptions (and therefore installations) outside of your application. This means that we need to be able to query the server for any external subscription changes. To do this, you will need to use <<FetchExternalUpdatesAsync>> to synchronise the server state with the plugin's local subscriptions:
 
-[source,cpp]
-----
-Modio::FetchExternalUpdatesAsync([](Modio::ErrorCode ec) {
-    if (ec)
-    {
-        //Couldn't fetch external subscription data, handle error
-    }
-    {
-        //Don't need to do anything here as such, the SDK's internal state has been synchronised 
-    }
-});
-----
+image::img/fetch_external_updates.png[]
 
-NOTE: You should call <<FetchExternalUpdatesAsync>> at particular times in your application when you want to ensure that the state is up-to-date - the SDK will apply rate-limiting internally if you try to call it too often.
+NOTE: You should call <<FetchExternalUpdatesAsync>> at particular times in your application when you want to ensure that the state is up-to-date - the plugin will apply rate-limiting internally if you try to call it too often.
 
 ===== Checking the user subscription list
 
 In order to see which mods the user has subscribed to, call <<QueryUserSubscriptions>> to retrieve a collection of <<ModCollectionEntry>> objects, one for each subscribed mod. 
 Each of these objects contains the mod's state, profile information, ID, and other data, suitable for showing users a list of their subscriptions.
 
-NOTE: This collection includes mods that are still in the process of being installed! Make sure to check the result of <<ModCollectionEntry::GetModState>> before trying to load files from the mods in this collection, or alternatively use <<QueryUserInstallations>> as described in <<Retrieving mod directory paths for loading>>.
+NOTE: This collection includes mods that are still in the process of being installed! Make sure to check the result of <<GetModState>> before trying to load files from the mods in this collection, or alternatively use <<QueryUserInstallations>> as described in <<Retrieving mod directory paths for loading>>.
 
+image::img/query_user_subscriptions.png[]
 
 ==== Installation management, mod paths
 
-So a subscription marks a mod as requiring installation, and an unsubscription indicates uninstallation, but how do you actually control when the SDK *does* those things? After all, you don't want a mod to be uninstalled after your main program has loaded those files into memory, locking them from deletion. Likewise, you probably don't want to be using networking or processor resources during gameplay for downloading mods. In order to give you control over when these processes occur, without forcing you to shut down the SDK entirely, you can call <<EnableModManagement>> and <<DisableModManagement>>.
+So a subscription marks a mod as requiring installation, and an unsubscription indicates uninstallation, but how do you actually control when the plugin *does* those things? After all, you don't want a mod to be uninstalled after your main program has loaded those files into memory, locking them from deletion. Likewise, you probably don't want to be using networking or processor resources during gameplay for downloading mods. In order to give you control over when these processes occur, without forcing you to shut down the plugin entirely, you can call <<EnableModManagement>> and <<DisableModManagement>>.
 
-In order to display a notification to your users when a mod is finished installing or updating, <<EnableModManagement>> asks you to provide it with a callback. Because <<EnableModManagement>> is not an async function (ie it doesn't end with *Async), the callback operates differently to asynchronous result callbacks you use elsewhere in the SDK. A callback given to this function will be held by the SDK until a corresponding call to <<DisableModManagement>> or <<Shutdown>>, and the callback will be invoked every time a mod is automatically installed, updated, or uninstalled by the SDK's internal event loop.
+In order to display a notification to your users when a mod is finished installing or updating, <<EnableModManagement>> asks you to provide it with a callback. Because <<EnableModManagement>> is not an async function (ie it doesn't end with *Async), the callback operates differently to asynchronous result callbacks you use elsewhere in the plugin. A callback given to this function will be held by the plugin until a corresponding call to <<DisableModManagement>> or <<Shutdown>>, and the callback will be invoked every time a mod is automatically installed, updated, or uninstalled by the plugin's internal event loop.
 
-[source,cpp]
-----
-Modio::EnableModManagement([](Modio::ModManagementEvent ModEvent) {
+image::img/enable_mod_management.png[]
 
-    if (ModEvent.Status && ModEvent.Event == Modio::ModManagementEvent::EventType::Installed)
-    {
-        fmt::print("Mod with id {} failed to install : {}", ModEvent.ID, ModEvent.Status.message());
-    }
+While mod management is enabled, the plugin assumes that it has the ability to make changes to the filesystem, including deleting mods that the user has no longer subscribed to. As a result you should make sure that you don't have any open handles to files inside the mod directories when you call <<EnableModManagement>>.
 
-});
+When you want to be able to freely open files in the mod directories, call <<DisableModManagement>> to tell the plugin to finish the current operation but not continue any others. 
+
+Call <<IsModManagementBusy>> to see if mod management is currently updating, installing, or uninstalling a mod. 
 
 
-//Some time later: check if there's a mod being installed, or more mods that require installation pending
-if (!Modio::IsModManagementBusy())
-{
-    //This will reset any in-progress installations to pending, so we're only calling it if nothing's being processed
-    Modio::DisableModManagement();
-}
-----
+image::img/disable_mod_management.png[]
+
+
 
 ===== Retrieving mod directory paths for loading
 
-So now we have the user picking mods and marking them for installation, we're enabling mod management at a point where we don't mind the SDK changing the filesystem, and mods are being installed by the SDK, we now need to know where they are on disk, otherwise you can't load them into your game!
+So now we have the user picking mods and marking them for installation, we're enabling mod management at a point where we don't mind the plugin changing the filesystem, and mods are being installed by the plugin, we now need to know where they are on disk, otherwise you can't load them into your game!
 
 The easiest way to do this is by using <<QueryUserInstallations>>. This function allows you to specify if you want to include outdated mods or not, and will return a collection of <<ModCollectionEntry>> objects that you can query for folder paths you can use to load files into your title. 
 
-[source,cpp]
-----
-std::vector<Modio::filesystem::path> ModPaths;
-
-//This will iterate over all the installed mods that are up-to-date
-for (std::pair<Modio::ModID, Modio::ModCollectionEntry>& Entry : Modio::QueryUserInstallations())
-{
-    ModPaths.push_back(Entry.second().GetPath());
-}
-
-//You can now append whatever filenames you expect in a mod to the paths and load those in
-for (Modio::filesystem::path& Path : ModPaths)
-{
-    YourGame::FileHandle ModManifest = YourGame::OpenFile(Path / "mod_manifest.txt");
-}
-----
+image::img/query_user_installations.png[]
 
 '''
 
-=== SDK quick-start: Error Handling
+=== Plugin quick-start: Error Handling
 
-Many functions in the SDK, especially asynchronous functions either return a Modio::ErrorCode, or else invoke your passed-in callback with a Modio::ErrorCode as the first parameter.
+NOTE: Error handling in Blueprints is still undergoing improvement. Please let us know if you have any feedback or suggestions for improving it!
+
+Many functions in the plugin, especially asynchronous functions either return a Modio::ErrorCode, or else invoke your passed-in callback with a Modio::ErrorCode as the first parameter.
 
 ==== Checking for errors
 
-You can check if a Modio::ErrorCode represents a success or failure by checking its 'truthyness'. If an ErrorCode evaluates to true, then the function failed.
+You can check if a ModioErrorCode represents a success or failure by using the `IsError` node. If the code returns true, then it represents an error.
 
-[source,cpp]
-----
-Modio::ErrorCode ec;
-if (ec)
-{
-    //Error code was truthy, therefore an error occurred. 
-}
-else
-{
-    //Error code was false-y, therefore the operation succeeded
-}
-----
+image::img/is_error.png[]
+
 
 ==== Inspecting ErrorCodes more deeply
 
@@ -479,160 +292,21 @@ Sometimes, this information will be all that is required, just a simple 'success
 
 In many cases, however, you will want to perform some degree of inspection on an ErrorCode in order to determine specific information about that error - if nothing else, so that you can display a reason for the failure to the end user.
 
-===== Direct Queries
-
-It's possible to query the raw value of an ErrorCode by comparing it against a particular enum value, for instance, to check if a particular ErrorCode represents a filesystem error of 'Not enough space', you could do the following:
-
-[source,cpp]
-----
-if (ec == Modio::FilesystemError::InsufficientSpace)
-{
-    //Handle insufficient space by deleting some files, or something else
-}
-else
-{
-    //Other error handling here
-}
-----
-
-Of course, this means you can chain such checks together:
-
-[source,cpp]
-----
-if (ec == Modio::FilesystemError::InsufficientSpace)
-{
-    //Handle insufficient space by deleting some files, or something else
-}
-else if (ec == Modio::FilesystemError::NoPermission)
-{
-    //Handle permissions error by asking the user to re-run as admin, or prompt for elevation, or similar
-}
-else
-{
-    //Other error handling here
-}
-----
-
-This isn't ideal though, for a number of reasons:
-
-* It's quite verbose
-* Doesn't check for semantic equivalency, only literal equivalency (some hypothetical other error that means the same thing, would return false because the codes don't match)
-* Requires you to handle each individual case regardless of whether you need to or not
-* Scales poorly if there are a number of error codes with equivalent semantics in this context
-
-We can address these by using so-called 'semantic queries' against the error code rather than directly comparing numerical values. 
-
 ===== Semantic Queries
-The SDK provides a function with a number of overloads that you can use to query for the semantic meaning of an ErrorCode.
 
-Firstly, you can query if an ErrorCode is equivalent to a specific raw enum value:
+In your application, you probably don't actually need to handle different network errors in different ways, for example. The semantics of networking errors are largely 'try the function again later'.
 
-[source,cpp]
-----
-Modio::ErrorCode ec;
-if (Modio::ErrorCodeMatches(ec, Modio::HttpError::CannotOpenConnection))
-{
-    //We couldn't connect to the mod.io server
-}
-----
+This is where <<ErrorCodeMatches>> comes in. 
 
-This of course can be chained together like the literal value comparison mentioned earlier:
+It allows you to query if the error satisfies a particular condition, such as 'does this code represent some kind of networking error', without needing to explicitly check the code against all the individual errors in the category:
 
-[source,cpp]
-----
-Modio::ErrorCode ec;
-if (Modio::ErrorCodeMatches(ec, Modio::HttpError::CannotOpenConnection))
-{
-    //We couldn't connect to the mod.io server
-}
-else if (Modio::ErrorCodeMatches(ec, Modio::HttpError::ServerClosedConnection))
-{
-    // Server unexpectedly closed the connection
-}
-----
-
-This still requires, however, knowledge of the different types of HTTP errors. In your application, though, you probably don't actually need to handle them differently. The semantics of networking errors are largely 'try the function again later'.
-
-This is where the second overload of <<ErrorCodeMatches>> comes in. 
-
-It allows you to query if the error satisfies a particular condition, such as 'does this code represent some kind of networking error':
-
-[source,cpp]
-----
-Modio::ErrorCode ec;
-if (Modio::ErrorCodeMatches(ec, Modio::ErrorConditionTypes::NetworkError))
-{
-    //Error code represents some kind of network error 
-}
-else
-{
-    //Error code is not a network error
-}
-----
+image::img/error_code_matches_network_error.png[]
 
 By querying if the error meets a specific condition, you can focus on handling a family of errors (in this case, network transmission errors) without needing to deal with individual errors within that grouping. No more manually checking against individual HttpError values, just a single query. 
 
-As a second example, when you ask the SDK to retrieve information about a specific mod, that mod ID might be invalid, or possibly even the mod could be deleted. Both of these result in an error, which you could handle like the following:
-
-[source,cpp]
-----
-// In Modio::GetModInfoAsync callback
-if (Modio::ErrorCodeMatches(ec,Modio::ApiError::RequestedModNotFound))
-{
-    //The mod ID wasn't valid, we couldn't find it
-}
-else if (Modio::ErrorCodeMatches(ec, Modio::ApiError::RequestedModDeleted))
-{
-    //The mod ID used to be valid, but the mod was deleted
-}
-else
-{
-    // ...
-}
-----
-
-However, you may not really care about the reasons the mod couldn't be looked up - just that the mod information couldn't be returned.
-
-As a result, you can query if the error code matches the `EntityNotFoundError` condition:
-
-[source,cpp]
-----
-// In Modio::GetModInfoAsync callback
-if (Modio::ErrorCodeMatches(ec,Modio::ErrorConditionTypes::EntityNotFoundError))
-{
-    //For whatever reason, the mod couldn't be found. Handle appropriately.
-}
-----
-
 By grouping these codes into semantic checks, it also helps you to potentially consolidate your error handling into a more limited set of generic error handlers rather than needing to deal with each potential outcome individually. 
 
-==== Putting it all together
-
-By combining queries against categories with queries against specific values, you can handle general families of errors at a single location with special-case clauses for a particular error as necessary:
-
-[source,cpp]
-----
-Modio::GetModInfoAsync(SomeModId, [](Modio::ErrorCode ec, Modio::Optional<Modio::ModInfo> Info)
-{
-    if (ec)
-    {
-        if (Modio::ErrorCodeMatches(ec, Modio::ErrorConditionTypes::NetworkError)) // Does the code belong to the network error group?
-        {
-            //Error code represents some kind of network error, ask the user to try again later
-        }
-        else if (Modio::ErrorCodeMatches(ec, Modio::ErrorConditionTypes::EntityNotFoundError)) //Does the code belong to the 'not found' group?
-        {
-            //We couldn't find that mod for whatever reason, this means that the list you're fetching the mod ID from is probably stale
-            //Call something here to fetch an updated version of the list from the server
-        } 
-        else if (Modio::ErrorCodeMatches(ec, Modio::GenericError::SDKNotInitialized)) // Is the code semantically equivalent to the specific error "SDK not initialized"?
-        {
-            //Your application is trying to call SDK functions without initializing the SDK first        
-        }
-    }
-});
-
-----
+image::img/error_code_matches_chaining.png[]
 
 
 '''

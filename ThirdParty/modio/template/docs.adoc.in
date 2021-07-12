@@ -2,7 +2,7 @@
 :source-highlighter: rouge
 :rouge-style: Modio
 
-{{heading("mod.io SDK Documentation")}}
+{{heading("mod.io UE4 Plugin Documentation")}}
 
 include::getting-started.adoc[]
 

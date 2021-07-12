@@ -198,8 +198,19 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 	ImageTask->Format = EImageFormat::PNG;
 	ImageTask->CompressionQuality = (int32) EImageCompressionQuality::Default;
 	ImageTask->bOverwriteFile = true;
-	ImageTask->PixelPreProcessors.Add(TAsyncAlphaWrite<FColor>(255));
+	ImageTask->PixelPreProcessors.Add([](FImagePixelData* PixelData) {
+		check(PixelData->GetType() == EImagePixelType::Color);
 
+		TImagePixelData<FColor>* ColorData = static_cast<TImagePixelData<FColor>*>(PixelData);
+		for (FColor& Pixel : static_cast<TImagePixelData<FColor>*>(PixelData)->Pixels)
+		{
+			if (Pixel.A >= 90)
+			{
+				Pixel.A = 255;
+			}
+		}
+	});
+	
 	if (ImageTask->RunTask())
 	{
 		// Success!

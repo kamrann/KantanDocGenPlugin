@@ -187,6 +187,10 @@ class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
 	}
 	EIntermediateProcessingResult ConvertAdocToHTML(FString IntermediateDir, FString OutputDir)
 	{
+
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		PlatformFile.CopyDirectoryTree(*(OutputDir / "img"), *(BinaryPath.Path / "img"), true);
+
 		const FFilePath InAdocPath {IntermediateDir / "docs.adoc"};
 		const FFilePath OutHTMLPath {OutputDir / "documentation.html"};
 		void* PipeRead = nullptr;
