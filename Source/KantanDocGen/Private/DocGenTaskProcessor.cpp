@@ -264,6 +264,8 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 			}
 		}
 	}
+	// TODO: Generate any other blueprint types and associated data here
+	//rather than enqueing the enumerator for other bp types, simply have one of each and deal with them here
 
 	if (SuccessfulNodeCount == 0)
 	{
