@@ -233,7 +233,7 @@ Because the mod.io service is available as a website as well as integration with
 
 image::img/fetch_external_updates.png[]
 
-NOTE: You should call <<K2_FetchExternalUpdatesAsync>> at particular times in your application when you want to ensure that the state is up-to-date - the plugin will apply rate-limiting internally if you try to call it too often.
+NOTE: You should call <<K2_FetchExternalUpdatesAsync>> sparingly, at times you want to ensure that the state is up-to-date. Alternatively, we recommend calling it based on user input such as a button in your UI, so you don't make spurious update checks. 
 
 ===== Checking the user subscription list
 

@@ -53,6 +53,7 @@ public:
 	/** Callable from background thread */
 	bool GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingState& State);
 	bool GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState& State);
+	bool GenerateTypeMembers(UObject* Type);
 	/**/
 
 protected:

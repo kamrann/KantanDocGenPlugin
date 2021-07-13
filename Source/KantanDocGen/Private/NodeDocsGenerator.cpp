@@ -210,7 +210,7 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 			}
 		}
 	});
-	
+
 	if (ImageTask->RunTask())
 	{
 		// Success!
@@ -332,7 +332,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		NodeFullTitle = NodeFullTitle.Left(TargetIdx).TrimEnd();
 	}
 	NodeDocFile->AppendChildWithValueEscaped("fulltitle", NodeFullTitle);
-	
+
 	FString NodeDesc = Node->GetTooltipText().ToString();
 	TargetIdx = NodeDesc.Find(TEXT("Target is "), ESearchCase::CaseSensitive);
 	if (TargetIdx != INDEX_NONE)
@@ -352,7 +352,8 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 			NodeDocFile->AppendChildWithValueEscaped("funcname", FuncNode->GetFunctionName().ToString());
 			NodeDocFile->AppendChildWithValueEscaped("rawcomment", Func->GetMetaData(TEXT("Comment")));
 			NodeDocFile->AppendChildWithValue("static", Func->HasAnyFunctionFlags(FUNC_Static) ? "true" : "false");
-			NodeDocFile->AppendChildWithValue("autocast", Func->HasMetaData(TEXT("BlueprintAutocast")) ? "true" : "false");
+			NodeDocFile->AppendChildWithValue("autocast",
+											  Func->HasMetaData(TEXT("BlueprintAutocast")) ? "true" : "false");
 			TArray<FStringFormatArg> Args;
 
 			if (FProperty* RetProp = Func->GetReturnProperty())
@@ -371,8 +372,8 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_Parm | CPF_Parm); ++PropertyIterator)
 			{
 				FProperty* FuncParameter = *PropertyIterator;
-				
-				//Skip the return type as we handled it earlier
+
+				// Skip the return type as we handled it earlier
 				if (FuncParameter->HasAllPropertyFlags(CPF_ReturnParm))
 				{
 					continue;
@@ -457,6 +458,44 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		return false;
 	}
 
+	return true;
+}
+
+bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
+{
+	if (Type)
+	{
+		UE_LOG(LogKantanDocGen, Display, TEXT("generating type members for : %s"), *Type->GetName());
+		if (UClass* ClassInstance = Cast<UClass>(Type))
+		{
+			TSharedPtr<DocTreeNode>* ClassDocTree = ClassDocTreeMap.Find(ClassInstance);
+			if (ClassDocTree) {
+				for (TFieldIterator<FProperty> PropertyIterator(ClassInstance);
+					PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible);
+					++PropertyIterator)
+				{
+					UE_LOG(LogKantanDocGen, Display, TEXT("member for class found : %s"), *PropertyIterator->GetNameCPP());
+				}
+			}
+		}
+		else
+		{
+			if (auto Struct = Cast<UStruct>(Type))
+			{
+				if (!Struct->HasAnyFlags(EObjectFlags::RF_ArchetypeObject | EObjectFlags::RF_ClassDefaultObject) &&
+					!Type->IsA(UFunction::StaticClass()) && !Type->IsA(UClass::StaticClass()))
+				{
+					for (TFieldIterator<FProperty> PropertyIterator(Struct);
+						 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible);
+						 ++PropertyIterator)
+					{
+						UE_LOG(LogKantanDocGen, Display, TEXT("member for struct found : %s"),
+							   *PropertyIterator->GetNameCPP());
+					}
+				}
+			}
+		}
+	}
 	return true;
 }
 

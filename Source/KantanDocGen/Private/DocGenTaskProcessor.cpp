@@ -110,12 +110,14 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 
 		while (auto Obj = Current->CurrentEnumerator->GetNext())
 		{
+			UE_LOG(LogKantanDocGen, Display, TEXT("Enumerating object %s"), *Obj->GetName());
 			// Ignore if already processed
 			if (Current->Processed.Contains(Obj))
 			{
 				continue;
 			}
-
+			Current->SourceObject = Obj;
+			Current->TypesToParseForMembers.Add(Obj);
 			// Cache list of spawners for this object
 			auto& BPActionMap = FBlueprintActionDatabase::Get().GetAllActions();
 			if (auto ActionList = BPActionMap.Find(Obj))
@@ -125,7 +127,6 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 					continue;
 				}
 
-				Current->SourceObject = Obj;
 				for (auto Spawner : *ActionList)
 				{
 					// Add to queue as weak ptr
@@ -264,8 +265,12 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr<FDocGenTask> InTask)
 			}
 		}
 	}
+	for (const auto& Type : Current->TypesToParseForMembers)
+	{
+		Current->DocGen->GenerateTypeMembers(Type.Get());
+	}
 	// TODO: Generate any other blueprint types and associated data here
-	//rather than enqueing the enumerator for other bp types, simply have one of each and deal with them here
+	// rather than enqueing the enumerator for other bp types, simply have one of each and deal with them here
 
 	if (SuccessfulNodeCount == 0)
 	{

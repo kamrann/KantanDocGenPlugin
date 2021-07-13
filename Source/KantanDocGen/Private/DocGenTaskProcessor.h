@@ -64,6 +64,7 @@ protected:
 
 		TSharedPtr<ISourceObjectEnumerator> CurrentEnumerator;
 		TWeakObjectPtr<UObject> SourceObject;
+		TArray<TWeakObjectPtr<UObject>> TypesToParseForMembers;
 		TQueue<TWeakObjectPtr<UBlueprintNodeSpawner>> CurrentSpawners;
 
 		TUniquePtr<FNodeDocsGenerator> DocGen;

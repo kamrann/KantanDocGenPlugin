@@ -63,6 +63,7 @@ void FNativeModuleEnumerator::Prepass(FName const& ModuleName)
 		{
 			if (!Struct->HasAnyFlags(EObjectFlags::RF_ArchetypeObject | EObjectFlags::RF_ClassDefaultObject ) && !Obj->IsA(UFunction::StaticClass()) && !Obj->IsA(UClass::StaticClass()))
 			{
+				ObjectToProcess = Struct;
 				UE_LOG(LogKantanDocGen, Log, TEXT("Found struct '%s' in package '%s'"), *Obj->GetName(), *PkgName);
 			}
 		}
