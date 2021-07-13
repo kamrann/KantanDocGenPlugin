@@ -13,6 +13,7 @@ public class KantanDocGen : ModuleRules
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		bEnforceIWYU = true;
+		bUseUnity = false;
 
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Private"));
 		PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "../../ThirdParty/variant/include"));

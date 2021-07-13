@@ -25,7 +25,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
 #include "NodeFactory.h"
-#include "OutputFormats/DocGenOutputFormatFactory.h"
+#include "OutputFormats/DocGenOutputFormatFactoryBase.h"
 #include "Runtime/ImageWriteQueue/Public/ImageWriteTask.h"
 #include "SGraphNode.h"
 #include "SGraphPanel.h"
@@ -352,7 +352,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 			NodeDocFile->AppendChildWithValueEscaped("funcname", FuncNode->GetFunctionName().ToString());
 			NodeDocFile->AppendChildWithValueEscaped("rawcomment", Func->GetMetaData(TEXT("Comment")));
 			NodeDocFile->AppendChildWithValue("static", Func->HasAnyFunctionFlags(FUNC_Static) ? "true" : "false");
-
+			NodeDocFile->AppendChildWithValue("autocast", Func->HasMetaData(TEXT("BlueprintAutocast")) ? "true" : "false");
 			TArray<FStringFormatArg> Args;
 
 			if (FProperty* RetProp = Func->GetReturnProperty())

@@ -1,5 +1,5 @@
 {{push_heading}}
-{{heading("Functions")}}
+{{heading("Functions")}} 
 
 ## for function in functions
 {% include "function.adoc.in" %}

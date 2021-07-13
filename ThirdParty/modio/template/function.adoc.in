@@ -1,5 +1,6 @@
 {{ push_heading }}
-{{ heading(function.funcname) }}
+[#{{function.funcname}},{{function.shorttitle}}]
+{{ heading(function.fulltitle) }}
 {{ push_heading }}
 
 image::img/{{last(split(function.imgpath, "/"))}}[]
@@ -13,6 +14,7 @@ image::img/{{last(split(function.imgpath, "/"))}}[]
 {{str_or_empty(function, "/doxygen/brief")}}
 
 {% if existsIn(function.doxygen, "requires")-%}
+[discrete]
 {{heading("Requirements")}}
 {% if isString(function.doxygen.requires) %}
 * _{{trim(function.doxygen.requires)}}_
@@ -24,6 +26,7 @@ image::img/{{last(split(function.imgpath, "/"))}}[]
 {% endif %}
 
 {% if existsIn(function, "inputs") or existsIn(function,"outputs") -%}
+[discrete]
 {{heading("Parameters")}}
 
 [.stretch,stripes=odd,frame=none, cols="25%,~"]
@@ -52,12 +55,14 @@ image::img/{{last(split(function.imgpath, "/"))}}[]
 {%- endif %}
 
 {% if existsIn(function.doxygen, "return") -%}
+[discrete]
 {{heading("Returns")}}
 
 {{str_or_empty(function, "/doxygen/return")}}
 
 {%- endif %}
 {% if existsIn(function.doxygen, "error") or existsIn(function.doxygen, "errorcategory")%}
+[discrete]
 {{heading("Error Values")}}
 
 [.stretch,stripes=odd,frame=none, cols="25%,~"]

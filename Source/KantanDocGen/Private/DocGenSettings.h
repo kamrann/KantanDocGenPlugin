@@ -11,7 +11,7 @@
 #include "GameFramework/Actor.h"
 #include "Misc/App.h"
 #include "Misc/Paths.h"
-#include "OutputFOrmats/DocGenOutputFormatFactory.h"
+#include "OutputFormats/DocGenOutputFormatFactory.h"
 #include "Serialization/ObjectAndNameAsStringProxyArchive.h"
 #include "UObject/Class.h"
 #include "UObject/ObjectMacros.h"
@@ -82,68 +82,12 @@ class UKantanDocGenSettingsObject : public UObject
 	GENERATED_BODY()
 
 public:
-	static UKantanDocGenSettingsObject* Get()
-	{
-		static bool bInitialized = false;
+	static UKantanDocGenSettingsObject* Get();
 
-		// This is a singleton, use default object
-		auto DefaultSettings = GetMutableDefault<UKantanDocGenSettingsObject>();
+	static void InitDefaults(UKantanDocGenSettingsObject* CDO);
+	void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 
-		if (!bInitialized)
-		{
-			DefaultSettings->LoadConfig();
-			InitDefaults(DefaultSettings);
-			bInitialized = true;
-		}
-		return DefaultSettings;
-	}
-
-	static void InitDefaults(UKantanDocGenSettingsObject* CDO)
-	{
-		if (CDO->Settings.DocumentationTitle.IsEmpty())
-		{
-			CDO->Settings.DocumentationTitle = FApp::GetProjectName();
-		}
-
-		if (CDO->Settings.OutputDirectory.Path.IsEmpty())
-		{
-			CDO->Settings.OutputDirectory.Path = FPaths::ProjectSavedDir() / TEXT("KantanDocGen");
-		}
-
-		if (CDO->Settings.BlueprintContextClass == nullptr)
-		{
-			CDO->Settings.BlueprintContextClass = AActor::StaticClass();
-		}
-	}
-	void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override
-	{
-		Super::PostEditChangeProperty(PropertyChangedEvent);
-		Settings.OutputFormatsSerializationData.Empty();
-		for (const auto& OutputFormat : Settings.OutputFormats)
-		{
-			if (OutputFormat)
-			{
-				Settings.OutputFormatsSerializationData.Add(OutputFormat->SaveSettings());
-			}
-		}
-	}
-
-	void PostInitProperties() override
-	{
-		Super::PostInitProperties();
-		Settings.OutputFormats.Empty();
-		for (const auto& FormatData : Settings.OutputFormatsSerializationData)
-		{
-			UDocGenOutputFormatFactoryBase* RecreatedFactory =
-				NewObject<UDocGenOutputFormatFactoryBase>(this, FormatData.FactoryClass);
-			if (RecreatedFactory)
-			{
-				RecreatedFactory->LoadSettings(FormatData);
-				Settings.OutputFormats.Add(RecreatedFactory);
-
-			}
-		}
-	}
+	void PostInitProperties() override;
 
 public:
 	UPROPERTY(EditAnywhere, Export, config, Category = "Kantan DocGen", Meta = (ShowOnlyInnerProperties))

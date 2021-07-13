@@ -22,7 +22,7 @@ class FXmlFile;
 class FNodeDocsGenerator
 {
 public:
-	FNodeDocsGenerator(const TArray<UDocGenOutputFormatFactoryBase*>& OutputFormats)
+	FNodeDocsGenerator(const TArray<class UDocGenOutputFormatFactoryBase*>& OutputFormats)
 	:OutputFormats(OutputFormats)
 	{}
 	~FNodeDocsGenerator();
@@ -30,7 +30,7 @@ public:
 public:
 	struct FNodeProcessingState
 	{
-		TSharedPtr<DocTreeNode> ClassDocTree;
+		TSharedPtr<class DocTreeNode> ClassDocTree;
 		FString ClassDocsPath;
 		FString RelImageBasePath;
 		FString ImageFilename;

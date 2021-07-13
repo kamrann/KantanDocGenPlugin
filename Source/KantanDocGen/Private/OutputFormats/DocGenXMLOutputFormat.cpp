@@ -1,91 +1,77 @@
 #include "OutputFormats/DocGenXMLOutputFormat.h"
-#include "Interfaces/IPluginManager.h"
-#include "HAL/PlatformProcess.h"
-
-EIntermediateProcessingResult DocGenXMLOutputProcessor::ProcessIntermediateDocs(FString const& IntermediateDir,
-																				FString const& OutputDir,
-																				FString const& DocTitle,
-																				bool bCleanOutput)
+#include "OutputFormats/DocGenXMLOutputProcessor.h"
+#include "XmlFile.h"
+ 
+FString DocGenXMLSerializer::EscapeString(const FString& InString)
 {
-	auto& PluginManager = IPluginManager::Get();
-	auto Plugin = PluginManager.FindPlugin(TEXT("KantanDocGen"));
-	if (!Plugin.IsValid())
+	return TEXT("<![CDATA[") + InString + TEXT("]]>");
+}
+
+FString DocGenXMLSerializer::GetFileExtension()
+{
+	return ".xml";
+}
+
+void DocGenXMLSerializer::SerializeObject(const DocTreeNode::Object& Obj)
+{
+	for (auto& Member : Obj)
 	{
-		UE_LOG(LogKantanDocGen, Error, TEXT("Failed to locate plugin info"));
-		return EIntermediateProcessingResult::UnknownError;
+		TargetNode->AppendChildNode(Member.Key, FString());
+		Member.Value->SerializeWith(MakeShared<DocGenXMLSerializer>(TargetNode->GetChildrenNodes().Last()));
 	}
+	// for each value in Obj
+	// create a node using the key as a name
+	// then call SerializeWith and pass ourselves
+}
 
-	const FString DocGenToolBinPath =
-		Plugin->GetBaseDir() / TEXT("ThirdParty") / TEXT("KantanDocGenTool") / TEXT("bin");
-	const FString DocGenToolExeName = TEXT("KantanDocGen.exe");
-	const FString DocGenToolPath = DocGenToolBinPath / DocGenToolExeName;
+void DocGenXMLSerializer::SerializeString(const FString& InString)
+{
+	TargetNode->SetContent(InString);
+}
 
-	// Create a read and write pipe for the child process
-	void* PipeRead = nullptr;
-	void* PipeWrite = nullptr;
-	verify(FPlatformProcess::CreatePipe(PipeRead, PipeWrite));
+void DocGenXMLSerializer::SerializeNull() {}
 
-	FString Args = FString(TEXT("-outputdir=")) + TEXT("\"") + OutputDir + TEXT("\"") +
-				   TEXT(" -fromintermediate -intermediatedir=") + TEXT("\"") + IntermediateDir + TEXT("\"") +
-				   TEXT(" -name=") + DocTitle + (bCleanOutput ? TEXT(" -cleanoutput") : TEXT(""));
-	UE_LOG(LogKantanDocGen, Log, TEXT("Invoking conversion tool: %s %s"), *DocGenToolPath, *Args);
-	FProcHandle Proc =
-		FPlatformProcess::CreateProc(*DocGenToolPath, *Args, true, false, false, nullptr, 0, nullptr, PipeWrite);
+DocGenXMLSerializer::DocGenXMLSerializer()
+{
+	const FString FileTemplate = R"xxx(<?xml version="1.0" encoding="UTF-8"?>)xxx"
+								 "\r\n"
+								 R"xxx(<root></root>)xxx";
 
-	int32 ReturnCode = 0;
-	if (Proc.IsValid())
+	TopLevelFile = MakeShared<FXmlFile>(FileTemplate, EConstructMethod::ConstructFromBuffer);
+	TargetNode = TopLevelFile->GetRootNode();
+}
+
+DocGenXMLSerializer::DocGenXMLSerializer(FXmlNode* TargetNode) : TargetNode(TargetNode) {}
+
+bool DocGenXMLSerializer::SaveToFile(const FString& OutFileDirectory, const FString& OutFileName)
+{
+	if (!TopLevelFile)
 	{
-		FString BufferedText;
-		for (bool bProcessFinished = false; !bProcessFinished;)
-		{
-			bProcessFinished = FPlatformProcess::GetProcReturnCode(Proc, &ReturnCode);
-
-			/*			if(!bProcessFinished && Warn->ReceivedUserCancel())
-			{
-			FPlatformProcess::TerminateProc(ProcessHandle);
-			bProcessFinished = true;
-			}
-			*/
-			BufferedText += FPlatformProcess::ReadPipe(PipeRead);
-
-			int32 EndOfLineIdx;
-			while (BufferedText.FindChar('\n', EndOfLineIdx))
-			{
-				FString Line = BufferedText.Left(EndOfLineIdx);
-				Line.RemoveFromEnd(TEXT("\r"));
-
-				UE_LOG(LogKantanDocGen, Log, TEXT("[KantanDocGen] %s"), *Line);
-
-				BufferedText = BufferedText.Mid(EndOfLineIdx + 1);
-			}
-
-			FPlatformProcess::Sleep(0.1f);
-		}
-
-		// FPlatformProcess::WaitForProc(Proc);
-		// FPlatformProcess::GetProcReturnCode(Proc, &ReturnCode);
-		FPlatformProcess::CloseProc(Proc);
-		Proc.Reset();
-
-		if (ReturnCode != 0)
-		{
-			UE_LOG(LogKantanDocGen, Error, TEXT("KantanDocGen tool failed (code %i), see above output."), ReturnCode);
-		}
+		return false;
 	}
+	return TopLevelFile->Save(OutFileDirectory / OutFileName + GetFileExtension());
+}
 
-	// Close the pipes
-	FPlatformProcess::ClosePipe(0, PipeRead);
-	FPlatformProcess::ClosePipe(0, PipeWrite);
+TSharedPtr<struct DocTreeNode::IDocTreeSerializer> UDocGenXMLOutputFactory::CreateSerializer()
+{
+	return MakeShared<DocGenXMLSerializer>();
+}
 
-	switch (ReturnCode)
-	{
-		case 0:
-			return EIntermediateProcessingResult::Success;
-		case -1:
-			return EIntermediateProcessingResult::UnknownError;
-		case -2:
-			return EIntermediateProcessingResult::DiskWriteFailure;
-		default:
-			return EIntermediateProcessingResult::SuccessWithErrors;
-	}
+TSharedPtr<struct IDocGenOutputProcessor> UDocGenXMLOutputFactory::CreateIntermediateDocProcessor()
+{
+	return MakeShared<DocGenXMLOutputProcessor>();
+}
+
+FString UDocGenXMLOutputFactory::GetFormatIdentifier()
+{
+	return "xml";
+}
+
+void UDocGenXMLOutputFactory::LoadSettings(const FDocGenOutputFormatFactorySettings& Settings) {}
+
+FDocGenOutputFormatFactorySettings UDocGenXMLOutputFactory::SaveSettings()
+{
+	FDocGenOutputFormatFactorySettings Settings;
+	Settings.FactoryClass = StaticClass();
+	return Settings;
 }

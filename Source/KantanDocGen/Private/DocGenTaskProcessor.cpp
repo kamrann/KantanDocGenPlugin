@@ -21,7 +21,7 @@
 #include "KantanDocGenLog.h"
 #include "Misc/App.h"
 #include "NodeDocsGenerator.h"
-#include "OutputFormats/DocGenOutputFormatFactory.h"
+#include "OutputFormats/DocGenOutputFormatFactoryBase.h"
 #include "OutputFormats/DocGenOutputProcessor.h"
 #include "ThreadingHelpers.h"
 #include "Widgets/Notifications/SNotificationList.h"

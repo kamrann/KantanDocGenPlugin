@@ -76,7 +76,7 @@ NOTE: All async methods in the public API end with the suffix `Async`.
 
 ===== Callback conventions
 All of these asynchronous methods take a delegate as an argument, which will be invoked *exactly once* with the results of the requested operation. 
-Every async callback takes a <<ErrorCode>> as its first parameter, with any optional results wrapped in <<'Modio::Optional'>> so that you can easily check if a result is valid or not. 
+Every async callback takes a <<ErrorCode>> as its first parameter, with any optional results wrapped in `TOptional` so that you can easily check if a result is valid or not. 
 
 Any return values provided to your callback are passed-by-value - the plugin doesn't expect you to have to call `release` or otherwise free up resources given to you. 
 
@@ -91,7 +91,7 @@ NOTE: This means that if you stop calling <<RunPendingHandlers>>, any pending as
 
 ==== User Sessions
 
-The mod.io plugin runs on a per-platform-user basis. If you are using the plugin on a platform that requires user switching support, it is a requirement that you call <<ShutdownAsync>> and then re-initialize the plugin with <<InitializeAsync>> with the new platform-specific user handle.
+The mod.io plugin runs on a per-platform-user basis. If you are using the plugin on a platform that requires user switching support, it is a requirement that you call <<K2_ShutdownAsync>> and then re-initialize the plugin with <<K2_InitializeAsync>> with the new platform-specific user handle.
 
 ==== Error handling
 
@@ -110,7 +110,7 @@ For best performance it should be called at least once per frame, so it should e
 
 image::img/run_pending_handlers.png[]
 
-When you are ready to initialize the plugin for the current user, you'll need to call <<InitializeAsync>>, passing in an instance of `FModioInitializeOptions`, and a delegate so you know when the plugin is initialized correctly. 
+When you are ready to initialize the plugin for the current user, you'll need to call <<K2_InitializeAsync>>, passing in an instance of `FModioInitializeOptions`, and a delegate so you know when the plugin is initialized correctly. 
 
 image::img/initasync_customoptions.png[]
 
@@ -148,7 +148,7 @@ Email authentication involves:
 
 ===== Submitting an email address
 
-To request an email authentication code be sent to a user's email address, use the <<Request Email Auth Code Async>> node.
+To request an email authentication code be sent to a user's email address, use the <<K2_RequestEmailAuthCodeAsync>> node.
 
 image::img/request_email_auth_code.png[]
 
@@ -158,7 +158,7 @@ This code can then be sent to the mod.io server to finalize the user's authentic
 
 ===== Submitting an email authentication code
 
-Submitting an email authentication code is very similar to the process for requesting the code, and is done by calling <<Authenticate User Email Async>>.
+Submitting an email authentication code is very similar to the process for requesting the code, and is done by calling <<K2_AuthenticateUserEmailAsync>>.
 
 image::img/authenticate_user_email.png[]
 
@@ -186,8 +186,8 @@ In order to use SSO with mod.io, a user must have accepted the mod.io Terms of U
 
 This means the external authentication flow is the following:
 
-    1. Call <<AuthenticateUserExternalAsync>> , passing in any provider-specific parameters, setting `AuthenticationParams::bUserHasAcceptedTerms` to false, and indicating which authentication provider you wish to use
-    2. Check the error code in the callback - if it indicates the user has not yet created an account or accepted the terms, call <<GetTermsOfUseAsync>> and display the provided information to your user
+    1. Call <<K2_AuthenticateUserExternalAsync>> , passing in any provider-specific parameters, setting `AuthenticationParams::bUserHasAcceptedTerms` to false, and indicating which authentication provider you wish to use
+    2. Check the error code in the callback - if it indicates the user has not yet created an account or accepted the terms, call <<K2_GetTermsOfUseAsync>> and display the provided information to your user
     3. If the user clicks the OK/affirmative button on your screen displaying the terms of use, repeat the call in step 1 but setting `AuthenticationParams::bUserHasAcceptedTerms` to *true*
     4. Check the error code in the callback - a false-y error code indicates that authentication was successful, and users can now install and manage mods and subscriptions.
 
@@ -196,11 +196,11 @@ This means the external authentication flow is the following:
 
 === Plugin quick-start: Browsing available mods
 
-Now that you've followed the instructions in <<Plugin quick-start: Initialization and Teardown>> you can begin to query the available mods for information you can display to your end users. The primary way this is done is through <<ListAllModsAsync>>.
+Now that you've followed the instructions in <<Plugin quick-start: Initialization and Teardown>> you can begin to query the available mods for information you can display to your end users. The primary way this is done is through <<K2_ListAllModsAsync>>.
 
 image::img/list_all_mods.png[]
 
-You'll note that <<ListAllModsAsync>> takes a <<FilterParams>> object as its first parameter. The default state of this object is set to ask for the first 100 results (the maximum number returnable in a query), sorting by mod ID.
+You'll note that <<K2_ListAllModsAsync>> takes a <<FilterParams>> object as its first parameter. The default state of this object is set to ask for the first 100 results (the maximum number returnable in a query), sorting by mod ID.
 
 To search for a specific query string, sort in a different order, or combine different filters, you can use a FilterParams object like this:
 
@@ -219,7 +219,7 @@ A user indicates that they want to have a mod installed by 'subscribing' to it. 
 
 When a user 'unsubscribes' to a mod, they're indicating they'd like to have that mod uninstalled from any device they're logged in on. 
 
-The API for managing subscriptions is simple and consists of a call to either <<SubscribeToModAsync>> or <<UnsubscribeFromModAsync>> with the ID of the mod in question and a delegate to receive the status of the request:
+The API for managing subscriptions is simple and consists of a call to either <<K2_SubscribeToModAsync>> or <<K2_UnsubscribeFromModAsync>> with the ID of the mod in question and a delegate to receive the status of the request:
 
 image::img/subscribe_to_mod.png[]
 
@@ -229,11 +229,11 @@ image::img/unsubscribe_from_mod.png[]
 
 ===== External subscription changes
 
-Because the mod.io service is available as a website as well as integration within your applications, users can manage their subscriptions (and therefore installations) outside of your application. This means that we need to be able to query the server for any external subscription changes. To do this, you will need to use <<FetchExternalUpdatesAsync>> to synchronise the server state with the plugin's local subscriptions:
+Because the mod.io service is available as a website as well as integration within your applications, users can manage their subscriptions (and therefore installations) outside of your application. This means that we need to be able to query the server for any external subscription changes. To do this, you will need to use <<K2_FetchExternalUpdatesAsync>> to synchronise the server state with the plugin's local subscriptions:
 
 image::img/fetch_external_updates.png[]
 
-NOTE: You should call <<FetchExternalUpdatesAsync>> at particular times in your application when you want to ensure that the state is up-to-date - the plugin will apply rate-limiting internally if you try to call it too often.
+NOTE: You should call <<K2_FetchExternalUpdatesAsync>> at particular times in your application when you want to ensure that the state is up-to-date - the plugin will apply rate-limiting internally if you try to call it too often.
 
 ===== Checking the user subscription list
 
@@ -246,13 +246,13 @@ image::img/query_user_subscriptions.png[]
 
 ==== Installation management, mod paths
 
-So a subscription marks a mod as requiring installation, and an unsubscription indicates uninstallation, but how do you actually control when the plugin *does* those things? After all, you don't want a mod to be uninstalled after your main program has loaded those files into memory, locking them from deletion. Likewise, you probably don't want to be using networking or processor resources during gameplay for downloading mods. In order to give you control over when these processes occur, without forcing you to shut down the plugin entirely, you can call <<EnableModManagement>> and <<DisableModManagement>>.
+So a subscription marks a mod as requiring installation, and an unsubscription indicates uninstallation, but how do you actually control when the plugin *does* those things? After all, you don't want a mod to be uninstalled after your main program has loaded those files into memory, locking them from deletion. Likewise, you probably don't want to be using networking or processor resources during gameplay for downloading mods. In order to give you control over when these processes occur, without forcing you to shut down the plugin entirely, you can call <<K2_EnableModManagement>> and <<DisableModManagement>>.
 
-In order to display a notification to your users when a mod is finished installing or updating, <<EnableModManagement>> asks you to provide it with a callback. Because <<EnableModManagement>> is not an async function (ie it doesn't end with *Async), the callback operates differently to asynchronous result callbacks you use elsewhere in the plugin. A callback given to this function will be held by the plugin until a corresponding call to <<DisableModManagement>> or <<Shutdown>>, and the callback will be invoked every time a mod is automatically installed, updated, or uninstalled by the plugin's internal event loop.
+In order to display a notification to your users when a mod is finished installing or updating, <<K2_EnableModManagement>> asks you to provide it with a callback. Because <<K2_EnableModManagement>> is not an async function (ie it doesn't end with *Async), the callback operates differently to asynchronous result callbacks you use elsewhere in the plugin. A callback given to this function will be held by the plugin until a corresponding call to <<DisableModManagement>> or <<K2_ShutdownAsync>>, and the callback will be invoked every time a mod is automatically installed, updated, or uninstalled by the plugin's internal event loop.
 
 image::img/enable_mod_management.png[]
 
-While mod management is enabled, the plugin assumes that it has the ability to make changes to the filesystem, including deleting mods that the user has no longer subscribed to. As a result you should make sure that you don't have any open handles to files inside the mod directories when you call <<EnableModManagement>>.
+While mod management is enabled, the plugin assumes that it has the ability to make changes to the filesystem, including deleting mods that the user has no longer subscribed to. As a result you should make sure that you don't have any open handles to files inside the mod directories when you call <<K2_EnableModManagement>>.
 
 When you want to be able to freely open files in the mod directories, call <<DisableModManagement>> to tell the plugin to finish the current operation but not continue any others. 
 

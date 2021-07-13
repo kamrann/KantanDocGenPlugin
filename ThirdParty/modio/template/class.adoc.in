@@ -2,17 +2,18 @@
 {{push_heading}}
 {{heading(class.class_id)}} 
 
-{{str_or_empty(class,"/doxygen/brief")}}
-
-{{push_heading}}
+{{-str_or_empty(class,"/doxygen/brief")-}}
 
 {% if existsIn(class, "functions") %}
-{{heading("Functions")}}
-
+{#
+{{heading("Functions")}} //Function heading disabled to avoid making the node names too small
+#}
 ## for function in class.functions
 {% include "function.adoc.in" %}
 ## endfor
 {% endif %}
+
+{{push_heading}}
 
 {% if existsIn(class, "fields") %}
 {{heading("Variables")}}

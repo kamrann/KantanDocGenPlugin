@@ -1,6 +1,9 @@
 #pragma once
+#include "Containers/Map.h"
+#include "Containers/UnrealString.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/Interface.h"
+#include "DocTreeNode.h"
 
 #include "DocGenOutputFormatFactory.generated.h"
 
@@ -21,7 +24,6 @@ struct FDocGenOutputFormatFactorySettings
 	UClass* FactoryClass;
 };
 
-
 class KANTANDOCGEN_API IDocGenOutputFormatFactory
 {
 	GENERATED_BODY()
@@ -40,23 +42,4 @@ public:
 	virtual void LoadSettings(const FDocGenOutputFormatFactorySettings& Settings) = 0;
 
 	virtual FDocGenOutputFormatFactorySettings SaveSettings() = 0;
-};
-
-
-UCLASS(Abstract, DefaultToInstanced, PerObjectConfig, EditInlineNew, Meta = (ShowOnlyInnerProperties),
-	   Config = EditorPerProjectUserSettings)
-class UDocGenOutputFormatFactoryBase : public UObject, public IDocGenOutputFormatFactory
-{
-	GENERATED_BODY()
-
-public:
-
-	virtual FString GetFormatIdentifier()
-		PURE_VIRTUAL(IDocGenOutputFormatFactory::GetFormatIdentifier, return FString(););
-	virtual TSharedPtr<struct DocTreeNode::IDocTreeSerializer> CreateSerializer()
-		PURE_VIRTUAL(IDocGenOutputFormatFactory::CreateSerializer, return nullptr;);
-	virtual TSharedPtr<struct IDocGenOutputProcessor> CreateIntermediateDocProcessor()
-		PURE_VIRTUAL(IDocGenOutputFormatFactory::CreateIntermediateDocProcessor, return nullptr;)
-	virtual void LoadSettings(const FDocGenOutputFormatFactorySettings& Settings) PURE_VIRTUAL(IDocGenOutputFormatFactory::LoadSettings,);
-	virtual FDocGenOutputFormatFactorySettings SaveSettings() PURE_VIRTUAL(IDocGenOutputFormatFactory::SaveSettings, return {};);
 };

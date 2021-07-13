@@ -9,7 +9,7 @@
 #include "Interfaces/ISlateRHIRendererModule.h"
 #include "KantanDocGenModule.h"
 #include "Modules/ModuleManager.h"
-#include "OutputFormats/DocGenOutputFormatFactory.h"
+#include "OutputFormats/DocGenOutputFormatFactoryBase.h"
 
 UDocGenCommandlet::UDocGenCommandlet()
 {
@@ -120,12 +120,14 @@ int32 UDocGenCommandlet::Main(const FString& Params)
 			for (const auto& Factory : OutputFormatFactories)
 			{
 				auto FactoryObject = NewObject<UDocGenOutputFormatFactoryBase>(GetTransientPackage(), Factory);
-
-				if (FactoryObject->GetFormatIdentifier() == Value)
+				IDocGenOutputFormatFactory* FactoryInterface = Cast<IDocGenOutputFormatFactory>(FactoryObject);
+				if (FactoryInterface)
 				{
-					
-					FactoryObject->LoadSettings({ParsedParams, Factory});
-					Settings.OutputFormats.Add(FactoryObject);
+					if (FactoryInterface->GetFormatIdentifier() == Value)
+					{
+						FactoryInterface->LoadSettings({ParsedParams, Factory});
+						Settings.OutputFormats.Add(FactoryObject);
+					}
 				}
 			}
 		}
@@ -174,7 +176,7 @@ TArray<UClass*> UDocGenCommandlet::GetAllOutputFormatFactories()
 		}
 
 		// Check this class implements our factory
-		if (!Class->IsChildOf(UDocGenOutputFormatFactoryBase::StaticClass()))
+		if (!Class->ImplementsInterface(UDocGenOutputFormatFactory::StaticClass()))
 		{
 			continue;
 		}
