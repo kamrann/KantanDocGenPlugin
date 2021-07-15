@@ -32,25 +32,12 @@ image::img/{{last(split(function.imgpath, "/"))}}[]
 [.stretch,stripes=odd,frame=none, cols="25%,~"]
 |===
 
-{% if isArray(function.inputs) %}
-## for param in function.inputs
+## for param in iterate(function.inputs)
 {% include "nodeparam.adoc.in" %} 
 ## endfor
-{% else %}
-## for paramname, param in function.inputs
+## for param in iterate(function.outputs)
 {% include "nodeparam.adoc.in" %} 
 ## endfor
-{% endif %}
-
-{% if isArray(function.outputs) %}
-## for param in function.outputs
-{% include "nodeparam.adoc.in" %} 
-## endfor
-{% else %}
-## for paramname, param in function.outputs
-{% include "nodeparam.adoc.in" %} 
-## endfor
-{% endif %}
 |===
 {%- endif %}
 
@@ -69,12 +56,12 @@ image::img/{{last(split(function.imgpath, "/"))}}[]
 |===
 
 {% if existsIn(function.doxygen, "error") %}
-## for err in function.doxygen.error
+## for err in iterate(function.doxygen.error)
 |{{trim(err)}}
 ## endfor
 {% endif -%}
 {%- if existsIn(function.doxygen, "errorcategory") %}
-## for category in function.doxygen.errorcategory.text
+## for category in iterate(function.doxygen.errorcategory)
 |{{trim(category)}}
 ## endfor
 {% endif %}

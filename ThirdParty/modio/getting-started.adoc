@@ -36,7 +36,7 @@ The settings have the following parameters:
 ==== ModioSubsystem
 The mod.io UE4 plugin consumes our native SDK internally, and it's public API is similar. Where the native SDK exposes a number of free functions within the `Modio` namespace, for ease of integration we have wrapped those in a https://docs.unrealengine.com/4.26/en-US/ProgrammingAndScripting/Subsystems/[Subsystem].
 
-The subsystem's lifetime is automatically managed by the engine for you, and provides a convenient way to access the plugin functionality, which is broadly grouped into the following categories:
+The <<ModioSubsystem,ModioSubsystem's>> lifetime is automatically managed by the engine for you, and provides a convenient way to access the plugin functionality, which is broadly grouped into the following categories:
 
 * Plugin management (initialization, teardown, event loop)
 * User authentication

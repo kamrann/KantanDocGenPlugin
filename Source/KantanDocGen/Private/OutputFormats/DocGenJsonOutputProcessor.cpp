@@ -295,7 +295,7 @@ EIntermediateProcessingResult DocGenJsonOutputProcessor::ProcessIntermediateDocs
 	TSharedPtr<FJsonObject> ParsedIndex = LoadFileToJson(IntermediateDir / "index.json");
 
 	TSharedPtr<FJsonObject> ConsolidatedOutput = InitializeMainOutputFromIndex(ParsedIndex);
-
+	//can go into its own function
 	TOptional<TArray<FString>> ClassNames = GetClassNamesFromIndexFile(ParsedIndex);
 	if (!ClassNames.IsSet())
 	{
@@ -359,6 +359,7 @@ EIntermediateProcessingResult DocGenJsonOutputProcessor::ProcessIntermediateDocs
 
 	ConsolidatedOutput->SetField("functions", StaticFunctionList.AsJsonValue());
 	ConsolidatedOutput->SetField("classes", ClassFunctionList.AsJsonValue());
+	//end class parsing function
 
 	FString Result;
 	auto JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&Result);

@@ -273,6 +273,8 @@ TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitIndexDocTree(FString const& Inde
 	TSharedPtr<DocTreeNode> IndexDocTree = MakeShared<DocTreeNode>();
 	IndexDocTree->AppendChildWithValueEscaped(TEXT("display_name"), IndexTitle);
 	IndexDocTree->AppendChild(TEXT("classes"));
+	IndexDocTree->AppendChild(TEXT("structs"));
+	IndexDocTree->AppendChild(TEXT("enums"));
 	return IndexDocTree;
 }
 
@@ -284,6 +286,7 @@ TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitClassDocTree(UClass* Class)
 	ClassDoc->AppendChildWithValueEscaped(TEXT("display_name"),
 										  FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 	ClassDoc->AppendChild(TEXT("nodes"));
+	ClassDoc->AppendChild(TEXT("members"));
 	return ClassDoc;
 }
 
@@ -296,6 +299,41 @@ bool FNodeDocsGenerator::UpdateIndexDocWithClass(TSharedPtr<DocTreeNode> DocTree
 											  FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 	return true;
 }
+
+bool FNodeDocsGenerator::UpdateIndexDocWithStruct(TSharedPtr<DocTreeNode> DocTree, UStruct* Struct)
+{
+	auto DocTreeStructsElement = DocTree->FindChildByName("structs");
+	auto DocTreeStruct = DocTreeStructsElement->AppendChild("struct");
+	DocTreeStruct->AppendChildWithValueEscaped(TEXT("id"), Struct->GetName());
+	if (Struct->HasMetaData(TEXT("DisplayName")))
+	{
+		DocTreeStruct->AppendChildWithValueEscaped(TEXT("display_name"), Struct->GetMetaData(TEXT("DisplayName")));
+	}
+	else
+	{
+		DocTreeStruct->AppendChildWithValueEscaped(TEXT("display_name"),
+												   FName::NameToDisplayString(Struct->GetName(), false));
+	}
+	return true;
+}
+
+bool FNodeDocsGenerator::UpdateIndexDocWithEnum(TSharedPtr<DocTreeNode> DocTree, UEnum* Enum) 
+{
+	auto DocTreeEnumsElement = DocTree->FindChildByName("enums");
+	auto DocTreeEnum = DocTreeEnumsElement->AppendChild("enum");
+	DocTreeEnum->AppendChildWithValueEscaped(TEXT("id"), Enum->GetName());
+	if (Enum->HasMetaData(TEXT("DisplayName")))
+	{
+		DocTreeEnum->AppendChildWithValueEscaped(TEXT("display_name"), Enum->GetMetaData(TEXT("DisplayName")));
+	}
+	else
+	{
+		DocTreeEnum->AppendChildWithValueEscaped(TEXT("display_name"), Enum->GetName());
+												   //FName::NameToDisplayString(Enum->GetName(), false));
+	}
+	return true;
+}
+
 bool FNodeDocsGenerator::UpdateClassDocWithNode(TSharedPtr<DocTreeNode> DocTree, UEdGraphNode* Node)
 {
 	auto DocTreeNodesElement = DocTree->FindChildByName("nodes");
@@ -466,36 +504,76 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 	if (Type)
 	{
 		UE_LOG(LogKantanDocGen, Display, TEXT("generating type members for : %s"), *Type->GetName());
-		if (UClass* ClassInstance = Cast<UClass>(Type))
+		if (Type->GetClass() == UClass::StaticClass())
 		{
-			TSharedPtr<DocTreeNode>* ClassDocTree = ClassDocTreeMap.Find(ClassInstance);
-			if (ClassDocTree) {
-				for (TFieldIterator<FProperty> PropertyIterator(ClassInstance);
-					PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible);
-					++PropertyIterator)
-				{
-					UE_LOG(LogKantanDocGen, Display, TEXT("member for class found : %s"), *PropertyIterator->GetNameCPP());
-				}
+			UClass* ClassInstance = Cast<UClass>(Type);
+			TSharedPtr<DocTreeNode>* FoundClassDocTree = ClassDocTreeMap.Find(ClassInstance);
+			TSharedPtr<DocTreeNode> ClassDocTree;
+			if (!FoundClassDocTree)
+			{
+				ClassDocTree = InitClassDocTree(ClassInstance);
+			}
+			else
+			{
+				ClassDocTree = *FoundClassDocTree;
+			}
+			bool bClassShouldBeDocumented = false;
+			auto MemberList = ClassDocTree->FindChildByName("members");
+			for (TFieldIterator<FProperty> PropertyIterator(ClassInstance);
+				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible); ++PropertyIterator)
+			{
+				bClassShouldBeDocumented = true;
+				UE_LOG(LogKantanDocGen, Display, TEXT("member for class found : %s"), *PropertyIterator->GetNameCPP());
+				auto Member = MemberList->AppendChild(TEXT("Member"));
+				Member->AppendChildWithValueEscaped("name", PropertyIterator->GetNameCPP());
+			}
+
+			// Only insert this into the map of classdocs if it wasnt already in there, and we actually need it to be
+			// included
+			if (!FoundClassDocTree && bClassShouldBeDocumented)
+			{
+				ClassDocTreeMap.Add(ClassInstance, ClassDocTree);
+				UpdateIndexDocWithClass(IndexTree, ClassInstance);
 			}
 		}
-		else
+		else if (Type->GetClass() == UScriptStruct::StaticClass())
 		{
-			if (auto Struct = Cast<UStruct>(Type))
+			UScriptStruct* Struct = Cast<UScriptStruct>(Type);
+			if (!Struct->HasAnyFlags(EObjectFlags::RF_ArchetypeObject | EObjectFlags::RF_ClassDefaultObject))
 			{
-				if (!Struct->HasAnyFlags(EObjectFlags::RF_ArchetypeObject | EObjectFlags::RF_ClassDefaultObject) &&
-					!Type->IsA(UFunction::StaticClass()) && !Type->IsA(UClass::StaticClass()))
+				for (TFieldIterator<FProperty> PropertyIterator(Struct);
+					 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible); ++PropertyIterator)
 				{
-					for (TFieldIterator<FProperty> PropertyIterator(Struct);
-						 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible);
-						 ++PropertyIterator)
-					{
-						UE_LOG(LogKantanDocGen, Display, TEXT("member for struct found : %s"),
-							   *PropertyIterator->GetNameCPP());
-					}
+					UE_LOG(LogKantanDocGen, Display, TEXT("member for struct found : %s"),
+						   *PropertyIterator->GetNameCPP());
+				}
+				UpdateIndexDocWithStruct(IndexTree, Struct);
+			}
+		}
+		else if (Type->GetClass() == UEnum::StaticClass())
+		{
+			UEnum* EnumInstance = Cast<UEnum>(Type);
+			if ((EnumInstance != NULL) && EnumInstance->HasAnyFlags(RF_NeedLoad))
+			{
+				EnumInstance->GetLinker()->Preload(EnumInstance);
+			}
+			EnumInstance->ConditionalPostLoad();
+
+			for (int32 EnumIndex = 0; EnumIndex < EnumInstance->NumEnums() - 1; ++EnumIndex)
+			{
+				bool const bShouldBeHidden = EnumInstance->HasMetaData(TEXT("Hidden"), EnumIndex) ||
+											 EnumInstance->HasMetaData(TEXT("Spacer"), EnumIndex);
+				if (!bShouldBeHidden)
+				{
+					FString const EnumValueName = EnumInstance->GetNameStringByIndex(EnumIndex);
+
+					FText EnumFriendlyName = EnumInstance->GetDisplayNameTextByIndex(EnumIndex);
 				}
 			}
+			UpdateIndexDocWithEnum(IndexTree, EnumInstance);
 		}
 	}
+
 	return true;
 }
 

@@ -59,9 +59,9 @@ void FNativeModuleEnumerator::Prepass(FName const& ModuleName)
 				ObjectToProcess = Class;
 			}
 		}
-		if (auto Struct = Cast<UStruct>(Obj))
+		if (auto Struct = Cast<UScriptStruct>(Obj))
 		{
-			if (!Struct->HasAnyFlags(EObjectFlags::RF_ArchetypeObject | EObjectFlags::RF_ClassDefaultObject ) && !Obj->IsA(UFunction::StaticClass()) && !Obj->IsA(UClass::StaticClass()))
+			if (!Struct->HasAnyFlags(EObjectFlags::RF_ClassDefaultObject ))
 			{
 				ObjectToProcess = Struct;
 				UE_LOG(LogKantanDocGen, Log, TEXT("Found struct '%s' in package '%s'"), *Obj->GetName(), *PkgName);
@@ -71,6 +71,7 @@ void FNativeModuleEnumerator::Prepass(FName const& ModuleName)
 		{
 			if (!FoundUenum->HasAnyFlags(EObjectFlags::RF_ArchetypeObject | EObjectFlags::RF_ClassDefaultObject))
 			{
+				ObjectToProcess = FoundUenum;
 				UE_LOG(LogKantanDocGen, Log, TEXT("Found enum '%s' in package '%s'"), *Obj->GetName(), *PkgName);
 			}
 		}

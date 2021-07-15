@@ -64,6 +64,8 @@ protected:
 	TSharedPtr<DocTreeNode> InitIndexDocTree(FString const& IndexTitle);
 	TSharedPtr<DocTreeNode> InitClassDocTree(UClass* Class);
 	bool UpdateIndexDocWithClass(TSharedPtr<DocTreeNode> DocTree, UClass* Class);
+	bool UpdateIndexDocWithStruct(TSharedPtr<DocTreeNode> DocTree, UStruct* Struct);
+	bool UpdateIndexDocWithEnum(TSharedPtr<DocTreeNode> DocTree, UEnum* Enum);
 	bool UpdateClassDocWithNode(TSharedPtr<DocTreeNode> DocTree, UEdGraphNode* Node);
 	
 	static void AdjustNodeForSnapshot(UEdGraphNode* Node);
