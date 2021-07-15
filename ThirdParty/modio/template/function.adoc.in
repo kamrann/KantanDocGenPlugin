@@ -1,3 +1,4 @@
+'''
 {{ push_heading }}
 [#{{function.funcname}},{{function.shorttitle}}]
 {{ heading(function.fulltitle) }}

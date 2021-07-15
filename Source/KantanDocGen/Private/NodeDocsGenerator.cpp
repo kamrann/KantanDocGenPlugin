@@ -111,7 +111,14 @@ bool FNodeDocsGenerator::GT_Finalize(FString OutputPath)
 	{
 		return false;
 	}
-
+	if (!SaveEnumDocFile(OutputPath))
+	{
+		return false;
+	}
+	if (!SaveStructDocFile(OutputPath))
+	{
+		return false;
+	}
 	if (!SaveIndexFile(OutputPath))
 	{
 		return false;
@@ -286,8 +293,43 @@ TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitClassDocTree(UClass* Class)
 	ClassDoc->AppendChildWithValueEscaped(TEXT("display_name"),
 										  FBlueprintEditorUtils::GetFriendlyClassDisplayName(Class).ToString());
 	ClassDoc->AppendChild(TEXT("nodes"));
-	ClassDoc->AppendChild(TEXT("members"));
+	ClassDoc->AppendChild(TEXT("fields"));
 	return ClassDoc;
+}
+
+TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitStructDocTree(UScriptStruct* Struct)
+{
+	TSharedPtr<DocTreeNode> StructDoc = MakeShared<DocTreeNode>();
+	StructDoc->AppendChildWithValueEscaped(TEXT("docs_name"), DocsTitle);
+	StructDoc->AppendChildWithValueEscaped(TEXT("id"), Struct->GetName());
+	if (Struct->HasMetaData(TEXT("DisplayName")))
+	{
+		StructDoc->AppendChildWithValueEscaped(TEXT("display_name"), Struct->GetMetaData(TEXT("DisplayName")));
+	}
+	else
+	{
+		StructDoc->AppendChildWithValueEscaped(TEXT("display_name"),
+											   FName::NameToDisplayString(Struct->GetName(), false));
+	}
+	StructDoc->AppendChild(TEXT("fields"));
+	return StructDoc;
+}
+
+TSharedPtr<DocTreeNode> FNodeDocsGenerator::InitEnumDocTree(UEnum* Enum)
+{
+	TSharedPtr<DocTreeNode> EnumDoc = MakeShared<DocTreeNode>();
+	EnumDoc->AppendChildWithValueEscaped(TEXT("docs_name"), DocsTitle);
+	EnumDoc->AppendChildWithValueEscaped(TEXT("id"), Enum->GetName());
+	if (Enum->HasMetaData(TEXT("DisplayName")))
+	{
+		EnumDoc->AppendChildWithValueEscaped(TEXT("display_name"), Enum->GetMetaData(TEXT("DisplayName")));
+	}
+	else
+	{
+		EnumDoc->AppendChildWithValueEscaped(TEXT("display_name"), Enum->GetName());
+	}
+	EnumDoc->AppendChild(TEXT("values"));
+	return EnumDoc;
 }
 
 bool FNodeDocsGenerator::UpdateIndexDocWithClass(TSharedPtr<DocTreeNode> DocTree, UClass* Class)
@@ -317,7 +359,7 @@ bool FNodeDocsGenerator::UpdateIndexDocWithStruct(TSharedPtr<DocTreeNode> DocTre
 	return true;
 }
 
-bool FNodeDocsGenerator::UpdateIndexDocWithEnum(TSharedPtr<DocTreeNode> DocTree, UEnum* Enum) 
+bool FNodeDocsGenerator::UpdateIndexDocWithEnum(TSharedPtr<DocTreeNode> DocTree, UEnum* Enum)
 {
 	auto DocTreeEnumsElement = DocTree->FindChildByName("enums");
 	auto DocTreeEnum = DocTreeEnumsElement->AppendChild("enum");
@@ -329,7 +371,7 @@ bool FNodeDocsGenerator::UpdateIndexDocWithEnum(TSharedPtr<DocTreeNode> DocTree,
 	else
 	{
 		DocTreeEnum->AppendChildWithValueEscaped(TEXT("display_name"), Enum->GetName());
-												   //FName::NameToDisplayString(Enum->GetName(), false));
+		// FName::NameToDisplayString(Enum->GetName(), false));
 	}
 	return true;
 }
@@ -524,7 +566,7 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 			{
 				bClassShouldBeDocumented = true;
 				UE_LOG(LogKantanDocGen, Display, TEXT("member for class found : %s"), *PropertyIterator->GetNameCPP());
-				auto Member = MemberList->AppendChild(TEXT("Member"));
+				auto Member = MemberList->AppendChild(TEXT("member"));
 				Member->AppendChildWithValueEscaped("name", PropertyIterator->GetNameCPP());
 			}
 
@@ -541,12 +583,47 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 			UScriptStruct* Struct = Cast<UScriptStruct>(Type);
 			if (!Struct->HasAnyFlags(EObjectFlags::RF_ArchetypeObject | EObjectFlags::RF_ClassDefaultObject))
 			{
+				auto StructDocTree = InitStructDocTree(Struct);
+				auto MemberList = StructDocTree->FindChildByName("fields");
+
+				auto StructTags = Detail::ParseDoxygenTagsForString(Struct->GetMetaData(TEXT("Comment")));
+				if (StructTags.Num())
+				{
+					auto DoxygenElement = StructDocTree->AppendChild("doxygen");
+					for (auto CurrentTag : StructTags)
+					{
+						for (auto CurrentValue : CurrentTag.Value)
+						{
+							DoxygenElement->AppendChildWithValueEscaped(CurrentTag.Key, CurrentValue);
+						}
+					}
+				}
+
 				for (TFieldIterator<FProperty> PropertyIterator(Struct);
 					 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible); ++PropertyIterator)
 				{
-					UE_LOG(LogKantanDocGen, Display, TEXT("member for struct found : %s"),
-						   *PropertyIterator->GetNameCPP());
+					// Move into its own function for use in parsing classes
+					auto Member = MemberList->AppendChild("field");
+					Member->AppendChildWithValueEscaped("name", PropertyIterator->GetNameCPP());
+					FString ExtendedTypeString;
+					FString TypeString = PropertyIterator->GetCPPType(&ExtendedTypeString);
+
+					Member->AppendChildWithValueEscaped("type", TypeString + ExtendedTypeString);
+					auto MemberTags = Detail::ParseDoxygenTagsForString(PropertyIterator->GetMetaData(TEXT("Comment")));
+					if (MemberTags.Num())
+					{
+						auto DoxygenElement = Member->AppendChild("doxygen");
+						for (auto CurrentTag : MemberTags)
+						{
+							for (auto CurrentValue : CurrentTag.Value)
+							{
+								DoxygenElement->AppendChildWithValueEscaped(CurrentTag.Key, CurrentValue);
+							}
+						}
+					}
 				}
+
+				StructDocTreeMap.Add(Struct, StructDocTree);
 				UpdateIndexDocWithStruct(IndexTree, Struct);
 			}
 		}
@@ -559,18 +636,35 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 			}
 			EnumInstance->ConditionalPostLoad();
 
+			auto EnumDocTree = InitEnumDocTree(EnumInstance);
+			auto EnumTags = Detail::ParseDoxygenTagsForString(EnumInstance->GetMetaData(TEXT("Comment")));
+			if (EnumTags.Num())
+			{
+				auto DoxygenElement = EnumDocTree->AppendChild("doxygen");
+				for (auto CurrentTag : EnumTags)
+				{
+					for (auto CurrentValue : CurrentTag.Value)
+					{
+						DoxygenElement->AppendChildWithValueEscaped(CurrentTag.Key, CurrentValue);
+					}
+				}
+			}
+
+			auto ValueList = EnumDocTree->FindChildByName("values");
 			for (int32 EnumIndex = 0; EnumIndex < EnumInstance->NumEnums() - 1; ++EnumIndex)
 			{
 				bool const bShouldBeHidden = EnumInstance->HasMetaData(TEXT("Hidden"), EnumIndex) ||
 											 EnumInstance->HasMetaData(TEXT("Spacer"), EnumIndex);
 				if (!bShouldBeHidden)
 				{
-					FString const EnumValueName = EnumInstance->GetNameStringByIndex(EnumIndex);
-
-					FText EnumFriendlyName = EnumInstance->GetDisplayNameTextByIndex(EnumIndex);
+					auto Value = ValueList->AppendChild("value");
+					Value->AppendChildWithValueEscaped("name", EnumInstance->GetNameStringByIndex(EnumIndex));
+					Value->AppendChildWithValueEscaped("displayname", EnumInstance->GetDisplayNameTextByIndex(EnumIndex).ToString());
+					Value->AppendChildWithValueEscaped("description", EnumInstance->GetToolTipTextByIndex(EnumIndex).ToString());
 				}
 			}
 			UpdateIndexDocWithEnum(IndexTree, EnumInstance);
+			EnumDocTreeMap.Add(EnumInstance, EnumDocTree);
 		}
 	}
 
@@ -594,11 +688,59 @@ bool FNodeDocsGenerator::SaveClassDocFile(FString const& OutDir)
 	{
 		auto ClassId = GetClassDocId(Entry.Key.Get());
 		auto Path = OutDir / ClassId;
+		auto DummyImagePath = OutDir / ClassId / "img";
+		if (!IFileManager::Get().DirectoryExists(*DummyImagePath))
+		{
+			IFileManager::Get().MakeDirectory(*DummyImagePath);
+		}
 		for (const auto& FactoryObject : OutputFormats)
 		{
 			auto Serializer = FactoryObject->CreateSerializer();
 			Entry.Value->SerializeWith(Serializer);
 			Serializer->SaveToFile(Path, ClassId);
+		}
+	}
+	return true;
+}
+
+bool FNodeDocsGenerator::SaveEnumDocFile(FString const& OutDir)
+{
+	for (const auto& Entry : EnumDocTreeMap)
+	{
+		auto EnumId = Entry.Key.Get()->GetName();
+		auto Path = OutDir / EnumId;
+		auto DummyImagePath = OutDir / EnumId / "img";
+		if (!IFileManager::Get().DirectoryExists(*DummyImagePath))
+		{
+			IFileManager::Get().MakeDirectory(*DummyImagePath, true);
+		}
+		for (const auto& FactoryObject : OutputFormats)
+		{
+			auto Serializer = FactoryObject->CreateSerializer();
+			Entry.Value->SerializeWith(Serializer);
+			Serializer->SaveToFile(Path, EnumId);
+		}
+	}
+	return true;
+}
+
+bool FNodeDocsGenerator::SaveStructDocFile(FString const& OutDir)
+{
+	for (const auto& Entry : StructDocTreeMap)
+	{
+		auto StructId = Entry.Key.Get()->GetName();
+		auto Path = OutDir / StructId;
+		auto DummyImagePath = OutDir / StructId / "img";
+		if (!IFileManager::Get().DirectoryExists(*DummyImagePath))
+		{
+			IFileManager::Get().MakeDirectory(*DummyImagePath, true);
+		}
+
+		for (const auto& FactoryObject : OutputFormats)
+		{
+			auto Serializer = FactoryObject->CreateSerializer();
+			Entry.Value->SerializeWith(Serializer);
+			Serializer->SaveToFile(Path, StructId);
 		}
 	}
 	return true;

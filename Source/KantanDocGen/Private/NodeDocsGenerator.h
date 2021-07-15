@@ -60,9 +60,13 @@ protected:
 	void CleanUp();
 	bool SaveIndexFile(FString const& OutDir);
 	bool SaveClassDocFile(FString const& OutDir);
+	bool SaveEnumDocFile(FString const& OutDir);
+	bool SaveStructDocFile(FString const& OutDir);
 
 	TSharedPtr<DocTreeNode> InitIndexDocTree(FString const& IndexTitle);
 	TSharedPtr<DocTreeNode> InitClassDocTree(UClass* Class);
+	TSharedPtr<DocTreeNode> InitStructDocTree(UScriptStruct* Struct);
+	TSharedPtr<DocTreeNode> InitEnumDocTree(UEnum* Enum);
 	bool UpdateIndexDocWithClass(TSharedPtr<DocTreeNode> DocTree, UClass* Class);
 	bool UpdateIndexDocWithStruct(TSharedPtr<DocTreeNode> DocTree, UStruct* Struct);
 	bool UpdateIndexDocWithEnum(TSharedPtr<DocTreeNode> DocTree, UEnum* Enum);
@@ -82,6 +86,8 @@ protected:
 	FString DocsTitle;
 	TSharedPtr<DocTreeNode> IndexTree;
 	TMap<TWeakObjectPtr<UClass>, TSharedPtr<DocTreeNode>> ClassDocTreeMap;
+	TMap<TWeakObjectPtr<UStruct>, TSharedPtr<DocTreeNode>> StructDocTreeMap;
+	TMap<TWeakObjectPtr<UEnum>, TSharedPtr<DocTreeNode>> EnumDocTreeMap;
 	TArray<UDocGenOutputFormatFactoryBase*> OutputFormats;
 	FString OutputDir;
 	bool SaveAllFormats(FString const& OutDir, TSharedPtr<DocTreeNode> Document){};

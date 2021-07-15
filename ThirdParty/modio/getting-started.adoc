@@ -33,6 +33,7 @@ The settings have the following parameters:
 
 === Plugin structure and concepts
 
+[[modio_subsystem,ModioSubsystem]]
 ==== ModioSubsystem
 The mod.io UE4 plugin consumes our native SDK internally, and it's public API is similar. Where the native SDK exposes a number of free functions within the `Modio` namespace, for ease of integration we have wrapped those in a https://docs.unrealengine.com/4.26/en-US/ProgrammingAndScripting/Subsystems/[Subsystem].
 
@@ -76,11 +77,11 @@ NOTE: All async methods in the public API end with the suffix `Async`.
 
 ===== Callback conventions
 All of these asynchronous methods take a delegate as an argument, which will be invoked *exactly once* with the results of the requested operation. 
-Every async callback takes a <<ErrorCode>> as its first parameter, with any optional results wrapped in `TOptional` so that you can easily check if a result is valid or not. 
+Every async callback takes a <<ModioErrorCode>> as its first parameter, with any optional results wrapped in `TOptional` so that you can easily check if a result is valid or not. 
 
 Any return values provided to your callback are passed-by-value - the plugin doesn't expect you to have to call `release` or otherwise free up resources given to you. 
 
-NOTE: Even if the plugin is shut down while asynchronous operations are in-flight, your delegates will still be invoked *exactly once*. In this instance, the <<ErrorCode>> the delegate receives will indicate a cancellation state, and you should check for this as part of your error handling in your delegates.
+NOTE: Even if the plugin is shut down while asynchronous operations are in-flight, your delegates will still be invoked *exactly once*. In this instance, the <<ModioErrorCode>> the delegate receives will indicate a cancellation state, and you should check for this as part of your error handling in your delegates.
 
 ===== Maintaining the plugin event loop
 
@@ -95,11 +96,11 @@ The mod.io plugin runs on a per-platform-user basis. If you are using the plugin
 
 ==== Error handling
 
-Many functions in the plugin interface either return, or provide as the first parameter to your delegate, a <<ErrorCode>> value. This is essentially an opaque wrapper around a numeric error code with a category and an associated string message. 
+Many functions in the plugin interface either return, or provide as the first parameter to your delegate, a <<ModioErrorCode>> value. This is essentially an opaque wrapper around a numeric error code with a category and an associated string message. 
 
 The plugin doesn't attempt to predict what your error-handling logic or requirements are: instead, we return the error code to you so you can decide what to do. For instance, if you call a function and receive an error code matching a network error condition, do you want to close down the plugin? Retry again according to custom back-off logic? That decision is left to the consuming application. 
 
-For more details on the error codes and how to inspect their values, please see <<Plugin quick-start: Error Handling>> and <<ErrorCode>>.
+For more details on the error codes and how to inspect their values, please see <<Plugin quick-start: Error Handling>> and <<ModioErrorCode>>.
 
 '''
 
@@ -200,7 +201,7 @@ Now that you've followed the instructions in <<Plugin quick-start: Initializatio
 
 image::img/list_all_mods.png[]
 
-You'll note that <<K2_ListAllModsAsync>> takes a <<FilterParams>> object as its first parameter. The default state of this object is set to ask for the first 100 results (the maximum number returnable in a query), sorting by mod ID.
+You'll note that <<K2_ListAllModsAsync>> takes a <<ModioFilterParams>> object as its first parameter. The default state of this object is set to ask for the first 100 results (the maximum number returnable in a query), sorting by mod ID.
 
 To search for a specific query string, sort in a different order, or combine different filters, you can use a FilterParams object like this:
 
@@ -237,7 +238,7 @@ NOTE: You should call <<K2_FetchExternalUpdatesAsync>> sparingly, at times you w
 
 ===== Checking the user subscription list
 
-In order to see which mods the user has subscribed to, call <<QueryUserSubscriptions>> to retrieve a collection of <<ModCollectionEntry>> objects, one for each subscribed mod. 
+In order to see which mods the user has subscribed to, call <<QueryUserSubscriptions>> to retrieve a collection of <<ModioModCollectionEntry>> objects, one for each subscribed mod. 
 Each of these objects contains the mod's state, profile information, ID, and other data, suitable for showing users a list of their subscriptions.
 
 NOTE: This collection includes mods that are still in the process of being installed! Make sure to check the result of <<GetModState>> before trying to load files from the mods in this collection, or alternatively use <<QueryUserInstallations>> as described in <<Retrieving mod directory paths for loading>>.
@@ -267,7 +268,7 @@ image::img/disable_mod_management.png[]
 
 So now we have the user picking mods and marking them for installation, we're enabling mod management at a point where we don't mind the plugin changing the filesystem, and mods are being installed by the plugin, we now need to know where they are on disk, otherwise you can't load them into your game!
 
-The easiest way to do this is by using <<QueryUserInstallations>>. This function allows you to specify if you want to include outdated mods or not, and will return a collection of <<ModCollectionEntry>> objects that you can query for folder paths you can use to load files into your title. 
+The easiest way to do this is by using <<QueryUserInstallations>>. This function allows you to specify if you want to include outdated mods or not, and will return a collection of <<ModioModCollectionEntry>> objects that you can query for folder paths you can use to load files into your title. 
 
 image::img/query_user_installations.png[]
 

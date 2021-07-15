@@ -16,14 +16,17 @@
 {{push_heading}}
 
 {% if existsIn(class, "fields") %}
+{%- if length(iterate(class.fields)) > 0 -%}
+[discrete]
 {{heading("Variables")}}
 
 [.stretch,stripes=odd,frame=none,cols="20%,20%,~"]
 |===
-## for field in class.fields
+## for field in iterate(class.fields)
 {% include "field.adoc.in" %}
 ## endfor
 |===
+{%- endif -%}
 {% endif %}
 
 {{pop_heading}}

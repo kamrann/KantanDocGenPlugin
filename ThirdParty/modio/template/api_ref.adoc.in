@@ -10,23 +10,17 @@
 {{push_heading}}
 {{heading("Classes")}}
 
-## for classname, class in classes
+## for class in iterate(classes)
 {% include "class.adoc.in" %}
 ## endfor
-
-{#
 
 {{pop_heading}}
 
 {{push_heading}}
 {{heading("Structs")}}
 
-## for class in structs
-{% if path_exists(class,"/doxygen/docpublic") %}
+## for class in iterate(structs)
 {% include "class.adoc.in" %}
-{% else %}
-{{print("skipping "+class.name)}}
-{% endif %}
 ## endfor
 
 {{pop_heading}}
@@ -37,8 +31,6 @@
 ## for enum in enums
 {% include "enum.adoc.in" %}
 ## endfor
-
-#}
 
 {{pop_heading}}
 

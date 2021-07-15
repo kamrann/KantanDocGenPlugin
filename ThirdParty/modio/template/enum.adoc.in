@@ -1,16 +1,18 @@
+'''
 {{push_heading}}
-{{heading(enum.name, valid_id(enum.typeInfo.typeID))}} 
+{{heading(enum.display_name, enum.id)}} 
 
-{{str_or_empty(enum,"/doc/brief/text")}}
+{{str_or_empty(enum,"/doxygen/brief")}}
 
 {{push_heading}}
 {% if existsIn(enum, "values") %}
+[discrete]
 {{heading("Values")}}
 
 [.stretch,stripes=odd,frame=none,cols="20%,~"]
 |===
 ## for value in enum.values
-|[.variablename]#{{value.name}}#|{{value.val}}
+|[.variablename]#{{value.name}}#|{{value.description}}
 ## endfor
 |===
 {% endif %}

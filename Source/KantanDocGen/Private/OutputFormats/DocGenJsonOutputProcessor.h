@@ -14,10 +14,12 @@ class DocGenJsonOutputProcessor : public IDocGenOutputProcessor
 
 	TOptional<FString> GetObjectStringField(const TSharedPtr<FJsonObject> Obj, const FString& FieldName);
 
-	TOptional<TArray<FString>> GetNodeNamesFromClassFile(const FString& ClassFile);
+	TOptional<TArray<FString>> GetNamesFromFileAtLocation(const FString& NameType, const FString& ClassFile);
 
 	TSharedPtr<class FJsonObject> ParseNodeFile(const FString& NodeFilePath);
 
+	TSharedPtr<FJsonObject> ParseStructFile(const FString& StructFilePath);
+	TSharedPtr<FJsonObject> ParseEnumFile(const FString& EnumFilePath);
 	void CopyJsonField(const FString& FieldName, TSharedPtr<FJsonObject> ParsedNode, TSharedPtr<FJsonObject> OutNode);
 	TSharedPtr<FJsonObject> InitializeMainOutputFromIndex(TSharedPtr<FJsonObject> ParsedIndex);
 	EIntermediateProcessingResult ConvertJsonToAdoc(FString IntermediateDir);
@@ -33,7 +35,20 @@ public:
 																  FString const& OutputDir, FString const& DocTitle,
 																  bool bCleanOutput) override;
 
-	TOptional<TArray<FString>> GetClassNamesFromIndexFile(TSharedPtr<FJsonObject> ParsedIndex);
+	EIntermediateProcessingResult ConsolidateClasses(TSharedPtr<FJsonObject> ParsedIndex,
+													 FString const& IntermediateDir, FString const& OutputDir,
+													 TSharedPtr<FJsonObject> ConsolidatedOutput);
+
+	EIntermediateProcessingResult ConsolidateStructs(TSharedPtr<FJsonObject> ParsedIndex,
+													 FString const& IntermediateDir, FString const& OutputDir,
+													 TSharedPtr<FJsonObject> ConsolidatedOutput);
+	
+	EIntermediateProcessingResult ConsolidateEnums(TSharedPtr<FJsonObject> ParsedIndex,
+													 FString const& IntermediateDir, FString const& OutputDir,
+													 TSharedPtr<FJsonObject> ConsolidatedOutput);
+	
+
+	TOptional<TArray<FString>> GetNamesFromIndexFile(const FString& NameType, TSharedPtr<FJsonObject> ParsedIndex);
 
 	TSharedPtr<FJsonObject> LoadFileToJson(FString const& FilePath);
 };

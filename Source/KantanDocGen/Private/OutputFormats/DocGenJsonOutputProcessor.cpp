@@ -3,11 +3,11 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFilemanager.h"
 #include "Json.h"
+#include "JsonDomBuilder.h"
 #include "KantanDocGenLog.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Optional.h"
 #include "Misc/Paths.h"
-#include "JsonDomBuilder.h"
 
 FString DocGenJsonOutputProcessor::Quote(const FString& In)
 {
@@ -46,7 +46,8 @@ TOptional<FString> DocGenJsonOutputProcessor::GetObjectStringField(const TShared
 	}
 }
 
-TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetNodeNamesFromClassFile(const FString& ClassFile)
+TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetNamesFromFileAtLocation(const FString& NameType,
+																				 const FString& ClassFile)
 {
 	TSharedPtr<FJsonObject> ParsedClass = LoadFileToJson(ClassFile);
 	if (!ParsedClass)
@@ -54,10 +55,10 @@ TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetNodeNamesFromClassFile(
 		return {};
 	}
 
-	if (ParsedClass->HasTypedField<EJson::Array>("nodes"))
+	if (ParsedClass->HasTypedField<EJson::Array>(NameType))
 	{
 		TArray<FString> NodeNames;
-		for (const auto& Value : ParsedClass->GetArrayField("nodes"))
+		for (const auto& Value : ParsedClass->GetArrayField(NameType))
 		{
 			TOptional<FString> FuncID = GetObjectStringField(Value, "id");
 			if (FuncID.IsSet())
@@ -67,10 +68,10 @@ TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetNodeNamesFromClassFile(
 		}
 		return NodeNames;
 	}
-	else if (ParsedClass->HasTypedField<EJson::Object>("nodes"))
+	else if (ParsedClass->HasTypedField<EJson::Object>(NameType))
 	{
 		TArray<FString> NodeNames;
-		for (const auto& Node : ParsedClass->GetObjectField("nodes")->Values)
+		for (const auto& Node : ParsedClass->GetObjectField(NameType)->Values)
 		{
 			TOptional<FString> Name = GetObjectStringField(Node.Value, "id");
 			if (Name.IsSet())
@@ -104,6 +105,44 @@ TSharedPtr<FJsonObject> DocGenJsonOutputProcessor::ParseNodeFile(const FString& 
 	CopyJsonField("static", ParsedNode, OutNode);
 	CopyJsonField("autocast", ParsedNode, OutNode);
 	CopyJsonField("funcname", ParsedNode, OutNode);
+	return OutNode;
+}
+TSharedPtr<FJsonObject> DocGenJsonOutputProcessor::ParseStructFile(const FString& StructFilePath)
+{
+	TSharedPtr<FJsonObject> ParsedStruct = LoadFileToJson(StructFilePath);
+	if (!ParsedStruct)
+	{
+		return {};
+	}
+
+	TSharedPtr<FJsonObject> OutNode = MakeShared<FJsonObject>();
+	// Reusing the class template for now so renaming id to class_id to be consistent
+	if (TSharedPtr<FJsonValue> Field = ParsedStruct->TryGetField("id"))
+	{
+		OutNode->SetField("class_id", Field);
+	}
+
+	CopyJsonField("doxygen", ParsedStruct, OutNode);
+	CopyJsonField("display_name", ParsedStruct, OutNode);
+	CopyJsonField("fields", ParsedStruct, OutNode);
+	return OutNode;
+}
+
+TSharedPtr<FJsonObject> DocGenJsonOutputProcessor::ParseEnumFile(const FString& EnumFilePath)
+{
+	TSharedPtr<FJsonObject> ParsedEnum = LoadFileToJson(EnumFilePath);
+	if (!ParsedEnum)
+	{
+		return {};
+	}
+
+	TSharedPtr<FJsonObject> OutNode = MakeShared<FJsonObject>();
+
+	CopyJsonField("id", ParsedEnum, OutNode);
+	CopyJsonField("doxygen", ParsedEnum, OutNode);
+	CopyJsonField("display_name", ParsedEnum, OutNode);
+	CopyJsonField("values", ParsedEnum, OutNode);
+
 	return OutNode;
 }
 
@@ -289,14 +328,55 @@ EIntermediateProcessingResult DocGenJsonOutputProcessor::ProcessIntermediateDocs
 																				 FString const& DocTitle,
 																				 bool bCleanOutput)
 {
-	FJsonDomBuilder::FArray StaticFunctionList;
-	FJsonDomBuilder::FObject ClassFunctionList;
-
 	TSharedPtr<FJsonObject> ParsedIndex = LoadFileToJson(IntermediateDir / "index.json");
 
 	TSharedPtr<FJsonObject> ConsolidatedOutput = InitializeMainOutputFromIndex(ParsedIndex);
-	//can go into its own function
-	TOptional<TArray<FString>> ClassNames = GetClassNamesFromIndexFile(ParsedIndex);
+
+	EIntermediateProcessingResult ClassResult =
+		ConsolidateClasses(ParsedIndex, IntermediateDir, OutputDir, ConsolidatedOutput);
+	if (ClassResult != EIntermediateProcessingResult::Success)
+	{
+		return ClassResult;
+	}
+
+	EIntermediateProcessingResult StructResult =
+		ConsolidateStructs(ParsedIndex, IntermediateDir, OutputDir, ConsolidatedOutput);
+	if (StructResult != EIntermediateProcessingResult::Success)
+	{
+		return StructResult;
+	}
+
+	EIntermediateProcessingResult EnumResult =
+		ConsolidateEnums(ParsedIndex, IntermediateDir, OutputDir, ConsolidatedOutput);
+	if (EnumResult != EIntermediateProcessingResult::Success)
+	{
+		return EnumResult;
+	}
+
+	FString Result;
+	auto JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&Result);
+	FJsonSerializer::Serialize(ConsolidatedOutput.ToSharedRef(), JsonWriter);
+
+	if (!FFileHelper::SaveStringToFile(Result, *(IntermediateDir / "consolidated.json"),
+									   FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
+	{
+		return EIntermediateProcessingResult::DiskWriteFailure;
+	}
+	if (ConvertJsonToAdoc(IntermediateDir) == EIntermediateProcessingResult::Success)
+	{
+		return ConvertAdocToHTML(IntermediateDir, OutputDir);
+	}
+	return EIntermediateProcessingResult::UnknownError;
+}
+
+EIntermediateProcessingResult DocGenJsonOutputProcessor::ConsolidateClasses(TSharedPtr<FJsonObject> ParsedIndex,
+																			FString const& IntermediateDir,
+																			FString const& OutputDir,
+																			TSharedPtr<FJsonObject> ConsolidatedOutput)
+{
+	FJsonDomBuilder::FArray StaticFunctionList;
+	FJsonDomBuilder::FObject ClassFunctionList;
+	TOptional<TArray<FString>> ClassNames = GetNamesFromIndexFile("classes", ParsedIndex);
 	if (!ClassNames.IsSet())
 	{
 		return EIntermediateProcessingResult::UnknownError;
@@ -305,7 +385,7 @@ EIntermediateProcessingResult DocGenJsonOutputProcessor::ProcessIntermediateDocs
 	for (const auto& ClassName : ClassNames.GetValue())
 	{
 		const FString ClassFilePath = IntermediateDir / ClassName / ClassName + ".json";
-		TOptional<TArray<FString>> NodeNames = GetNodeNamesFromClassFile(ClassFilePath);
+		TOptional<TArray<FString>> NodeNames = GetNamesFromFileAtLocation("nodes", ClassFilePath);
 		if (!NodeNames.IsSet())
 		{
 			return EIntermediateProcessingResult::UnknownError;
@@ -359,25 +439,59 @@ EIntermediateProcessingResult DocGenJsonOutputProcessor::ProcessIntermediateDocs
 
 	ConsolidatedOutput->SetField("functions", StaticFunctionList.AsJsonValue());
 	ConsolidatedOutput->SetField("classes", ClassFunctionList.AsJsonValue());
-	//end class parsing function
-
-	FString Result;
-	auto JsonWriter = TJsonWriterFactory<TCHAR, TPrettyJsonPrintPolicy<TCHAR>>::Create(&Result);
-	FJsonSerializer::Serialize(ConsolidatedOutput.ToSharedRef(), JsonWriter);
-
-	if (!FFileHelper::SaveStringToFile(Result, *(IntermediateDir / "consolidated.json"),
-									   FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM))
-	{
-		return EIntermediateProcessingResult::DiskWriteFailure;
-	}
-	if (ConvertJsonToAdoc(IntermediateDir) == EIntermediateProcessingResult::Success)
-	{
-		return ConvertAdocToHTML(IntermediateDir, OutputDir);
-	}
-	return EIntermediateProcessingResult::UnknownError;
+	return EIntermediateProcessingResult::Success;
 }
 
-TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetClassNamesFromIndexFile(TSharedPtr<FJsonObject> ParsedIndex)
+EIntermediateProcessingResult DocGenJsonOutputProcessor::ConsolidateStructs(TSharedPtr<FJsonObject> ParsedIndex,
+																			FString const& IntermediateDir,
+																			FString const& OutputDir,
+																			TSharedPtr<FJsonObject> ConsolidatedOutput)
+{
+	FJsonDomBuilder::FArray StructList;
+
+	TOptional<TArray<FString>> StructNames = GetNamesFromIndexFile("structs", ParsedIndex);
+	if (!StructNames.IsSet())
+	{
+		return EIntermediateProcessingResult::UnknownError;
+	}
+
+	for (const auto& StructName : StructNames.GetValue())
+	{
+		const FString StructFilePath = IntermediateDir / StructName / StructName + ".json";
+		TSharedPtr<FJsonObject> StructJson = ParseStructFile(StructFilePath);
+		StructList.Add(MakeShared<FJsonValueObject>(StructJson));
+	}
+
+	ConsolidatedOutput->SetField("structs", StructList.AsJsonValue());
+	return EIntermediateProcessingResult::Success;
+}
+
+EIntermediateProcessingResult DocGenJsonOutputProcessor::ConsolidateEnums(TSharedPtr<FJsonObject> ParsedIndex,
+																		  FString const& IntermediateDir,
+																		  FString const& OutputDir,
+																		  TSharedPtr<FJsonObject> ConsolidatedOutput)
+{
+	FJsonDomBuilder::FArray EnumList;
+
+	TOptional<TArray<FString>> EnumNames = GetNamesFromIndexFile("enums", ParsedIndex);
+	if (!EnumNames.IsSet())
+	{
+		return EIntermediateProcessingResult::UnknownError;
+	}
+
+	for (const auto& EnumName : EnumNames.GetValue())
+	{
+		const FString EnumFilePath = IntermediateDir / EnumName / EnumName + ".json";
+		TSharedPtr<FJsonObject> EnumJson = ParseEnumFile(EnumFilePath);
+		EnumList.Add(MakeShared<FJsonValueObject>(EnumJson));
+	}
+
+	ConsolidatedOutput->SetField("enums", EnumList.AsJsonValue());
+	return EIntermediateProcessingResult::Success;
+}
+
+TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetNamesFromIndexFile(const FString& NameType,
+																			TSharedPtr<FJsonObject> ParsedIndex)
 {
 	if (!ParsedIndex)
 	{
@@ -385,7 +499,7 @@ TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetClassNamesFromIndexFile
 	}
 
 	const TArray<TSharedPtr<FJsonValue>>* ClassEntries;
-	if (!ParsedIndex->TryGetArrayField("classes", ClassEntries))
+	if (!ParsedIndex->TryGetArrayField(NameType, ClassEntries))
 	{
 		return {};
 	}
