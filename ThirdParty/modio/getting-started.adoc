@@ -308,6 +308,11 @@ By grouping these codes into semantic checks, it also helps you to potentially c
 
 image::img/error_code_matches_chaining.png[]
 
+==== Parameter Validation Errors
+
+Some of the plugin functions may return errors that indicate a parameter or data validation failure. For these cases, the plugin parses the error response from the mod.io API and stores the information about which parameters failed validation until the next network request is performed. If a plugin function returns an error which matches `EModioErrorCondition::InvalidArgsError`, you can call `GetLastValidationError` in your callback to retrieve those errors and display appropriate feedback to the end user. 
+
+image::img/get_last_validation_error.png[]
 
 '''
 
