@@ -1,13 +1,4 @@
 {{push_heading}}
-{{heading("Functions")}} 
-
-## for function in functions
-{% include "function.adoc.in" %}
-## endfor
-
-{{pop_heading}}
-
-{{push_heading}}
 {{heading("Classes")}}
 
 ## for class in iterate(classes)
@@ -21,6 +12,15 @@
 
 ## for class in iterate(structs)
 {% include "class.adoc.in" %}
+## endfor
+
+{{pop_heading}}
+
+{{push_heading}}
+{{heading("Functions")}} 
+
+## for function in functions
+{% include "function.adoc.in" %}
 ## endfor
 
 {{pop_heading}}

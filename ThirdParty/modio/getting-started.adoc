@@ -2,7 +2,7 @@
 
 === Installation and configuration
 
-Simply extract the plugin archive to the `Plugins/` directory of your project.  
+Simply extract the plugin archive to the `Plugins/Modio` directory of your project.  
 
 Enable the plugin in the Unreal Engine settings:
 
@@ -102,6 +102,35 @@ The plugin doesn't attempt to predict what your error-handling logic or requirem
 
 For more details on the error codes and how to inspect their values, please see <<Plugin quick-start: Error Handling>> and <<ModioErrorCode>>.
 
+==== Mod Data Directory
+
+The plugin stores mods in a game-specific directory in the following directory by default:
+
+[stripes=odd,frame=none,cols="1,^1,^1"]
+|===
+|Windows | Linux | OSX
+
+|`${FolderID_Public}/mod.io` | TBD |TBD
+|===
+
+However, this value can be overridden in one of two ways:
+
+* Globally for a system account
++
+On first run of a game using the plugin, `${FOLDERID_LocalAppData}/mod.io/globalsettings.json` will be created. 
++
+This JSON object contains a `RootLocalDataPath` element - changing the string here to a valid path on disk will globally redirect the mod installation directory for *ALL* games using the mod.io UE4 plugin or native SDK for the current system account. 
++
+NOTE: Changing this value while the SDK is initialized is not supported and behaviour is undefined.
+
+* Per-game for a system account   
++
+Per-game settings are stored in `${FOLDERID_LocalAppData}/mod.io/${GameId}/${mod.io user string}/user.json`. 
++
+*Adding* a `RootLocalDataPath` element to this file will redirect the mod installation directory for this specific game only, for the current system account. Removing this value will cause the game to revert back to the global value in `globalsettings.json`.
+
+
+
 '''
 
 === Plugin quick-start: Initialization and Teardown
@@ -167,13 +196,6 @@ Once this completes successfully, the user is authenticated and you can then man
 
 ==== SSO/External authentication
 
-[caption=2.0.0-alpha] 
-NOTE: Blueprint support for the external authentication flow is WIP but can be invoked from C++
-
-[caption=2.0.0-public]
-NOTE: Blueprint support for external authentication will be fully supported when the plugin leaves alpha
-
-
 Mod.io features single sign on authentication from a number of external providers. This currently includes:
 
     * Xbox Live
@@ -192,6 +214,9 @@ This means the external authentication flow is the following:
     3. If the user clicks the OK/affirmative button on your screen displaying the terms of use, repeat the call in step 1 but setting `AuthenticationParams::bUserHasAcceptedTerms` to *true*
     4. Check the error code in the callback - a false-y error code indicates that authentication was successful, and users can now install and manage mods and subscriptions.
 
+Here's what steps 1 and 2 might look like in Blueprint:
+
+image::img/authenticate_user_external.png[]
 
 '''
 
@@ -203,7 +228,7 @@ image::img/list_all_mods.png[]
 
 You'll note that <<K2_ListAllModsAsync>> takes a <<ModioFilterParams>> object as its first parameter. The default state of this object is set to ask for the first 100 results (the maximum number returnable in a query), sorting by mod ID.
 
-To search for a specific query string, sort in a different order, or combine different filters, you can use a FilterParams object like this:
+To search for a specific query string, sort in a different order, or combine different filters, you can use a <<ModioFilterParams>> object like this:
 
 image::img/list_all_mods_filter.png[]
 

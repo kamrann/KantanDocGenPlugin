@@ -79,6 +79,10 @@ table tr td {
 
     color               : #f5f5f5;
 }
+table thead tr th {
+
+    color               : #f5f5f5;
+}
 table.stripes-odd .tableblock {
 
     border              : none;
