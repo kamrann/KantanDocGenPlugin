@@ -1,4 +1,4 @@
-#include "OutputFormats//DocGenJsonOutputProcessor.h"
+#include "OutputFormats/DocGenJsonOutputProcessor.h"
 #include "Algo/Transform.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFilemanager.h"

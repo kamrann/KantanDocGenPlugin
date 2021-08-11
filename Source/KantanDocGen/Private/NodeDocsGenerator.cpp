@@ -429,7 +429,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		auto Func = FuncNode->GetTargetFunction();
 		if (Func)
 		{
-			NodeDocFile->AppendChildWithValueEscaped("funcname", FuncNode->GetFunctionName().ToString());
+			NodeDocFile->AppendChildWithValueEscaped("funcname", Func->GetAuthoredName());
 			NodeDocFile->AppendChildWithValueEscaped("rawcomment", Func->GetMetaData(TEXT("Comment")));
 			NodeDocFile->AppendChildWithValue("static", Func->HasAnyFunctionFlags(FUNC_Static) ? "true" : "false");
 			NodeDocFile->AppendChildWithValue("autocast",
@@ -446,7 +446,7 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 			{
 				Args.Add({"void"});
 			}
-			Args.Add({FuncNode->GetFunctionName().ToString()});
+			Args.Add({Func->GetAuthoredName()});
 			FString FuncParams;
 			for (TFieldIterator<FProperty> PropertyIterator(Func);
 				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_Parm | CPF_Parm); ++PropertyIterator)
