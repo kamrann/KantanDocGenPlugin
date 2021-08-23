@@ -1,3 +1,0 @@
-
-|[.variabletype]#xref:{{field.type}}[{{field.type}}]#|[.variablename]#{{field.name}}#|{{str_or_empty(field,"/doxygen/brief")}} 
-

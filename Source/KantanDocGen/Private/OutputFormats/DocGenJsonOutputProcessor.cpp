@@ -81,6 +81,10 @@ TOptional<TArray<FString>> DocGenJsonOutputProcessor::GetNamesFromFileAtLocation
 		}
 		return NodeNames;
 	}
+	else if (ParsedClass->HasTypedField<EJson::Null>(NameType))
+	{
+		return TArray<FString>();
+	}
 	return {};
 }
 

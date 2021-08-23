@@ -560,14 +560,29 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 				ClassDocTree = *FoundClassDocTree;
 			}
 			bool bClassShouldBeDocumented = false;
-			auto MemberList = ClassDocTree->FindChildByName("members");
+			auto MemberList = ClassDocTree->FindChildByName("fields");
 			for (TFieldIterator<FProperty> PropertyIterator(ClassInstance);
 				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible); ++PropertyIterator)
 			{
 				bClassShouldBeDocumented = true;
 				UE_LOG(LogKantanDocGen, Display, TEXT("member for class found : %s"), *PropertyIterator->GetNameCPP());
-				auto Member = MemberList->AppendChild(TEXT("member"));
+				auto Member = MemberList->AppendChild(TEXT("field"));
 				Member->AppendChildWithValueEscaped("name", PropertyIterator->GetNameCPP());
+				FString ExtendedTypeString;
+				FString TypeString = PropertyIterator->GetCPPType(&ExtendedTypeString);
+				Member->AppendChildWithValueEscaped("type", TypeString + ExtendedTypeString);
+				auto MemberTags = Detail::ParseDoxygenTagsForString(PropertyIterator->GetMetaData(TEXT("Comment")));
+				if (MemberTags.Num())
+				{
+					auto DoxygenElement = Member->AppendChild("doxygen");
+					for (auto CurrentTag : MemberTags)
+					{
+						for (auto CurrentValue : CurrentTag.Value)
+						{
+							DoxygenElement->AppendChildWithValueEscaped(CurrentTag.Key, CurrentValue);
+						}
+					}
+				}
 			}
 
 			// Only insert this into the map of classdocs if it wasnt already in there, and we actually need it to be
