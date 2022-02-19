@@ -25,6 +25,8 @@
 
 #define LOCTEXT_NAMESPACE "KantanDocGen"
 
+#define PLAY_FAIL_SOUND() GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileFailed_Cue.CompileFailed_Cue"))
+#define PLAY_SUCC_SOUND() GEditor->PlayEditorSound(TEXT("/Engine/EditorSounds/Notifications/CompileSuccess_Cue.CompileSuccess_Cue"));
 
 FDocGenTaskProcessor::FDocGenTaskProcessor()
 {
@@ -191,7 +193,7 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 			Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed"));
 			Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
 			Current->Task->Notification->ExpireAndFadeout();
-			//GEditor->PlayEditorSound(CompileSuccessSound);
+			PLAY_FAIL_SOUND();
 		}
 
 		return Result;
@@ -199,9 +201,12 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 
 	/*****************************/
 
-
-	Current = MakeUnique< FDocGenCurrentTask >();
-	Current->Task = InTask;
+	DocGenThreads::RunOnGameThread([this,InTask]()
+	{
+		// Destructor of slate component require in either slate thread or game thread, see SWidget::Invalidate(...)
+		Current = MakeUnique< FDocGenCurrentTask >();
+		Current->Task = InTask;
+	});
 
 	FString IntermediateDir = FPaths::ProjectIntermediateDir() / TEXT("KantanDocGen") / Current->Task->Settings.DocumentationTitle;
 
@@ -270,8 +275,8 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 				Current->Task->Notification->SetText(LOCTEXT("DocFinalizationFailed", "Doc gen failed - No nodes found"));
 				Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
 				Current->Task->Notification->ExpireAndFadeout();
+				PLAY_FAIL_SOUND();
 			});
-		//GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
 	}
 
@@ -305,8 +310,8 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 				Current->Task->Notification->SetText(Msg);
 				Current->Task->Notification->SetCompletionState(SNotificationItem::CS_Fail);
 				Current->Task->Notification->ExpireAndFadeout();
+				PLAY_FAIL_SOUND();
 			});
-		//GEditor->PlayEditorSound(CompileSuccessSound);
 		return;
 	}
 
@@ -329,9 +334,9 @@ void FDocGenTaskProcessor::ProcessTask(TSharedPtr< FDocGenTask > InTask)
 				HyperlinkText
 			);
 			Current->Task->Notification->ExpireAndFadeout();
+			Current.Reset();
+			PLAY_SUCC_SOUND();
 		});
-
-	Current.Reset();
 }
 
 FDocGenTaskProcessor::EIntermediateProcessingResult FDocGenTaskProcessor::ProcessIntermediateDocs(FString const& IntermediateDir, FString const& OutputDir, FString const& DocTitle, bool bCleanOutput)
@@ -430,5 +435,7 @@ FDocGenTaskProcessor::EIntermediateProcessingResult FDocGenTaskProcessor::Proces
 	}
 }
 
+#undef PLAY_FAIL_SOUND
+#undef PLAY_SUCC_SOUND
 
 #undef LOCTEXT_NAMESPACE
