@@ -90,7 +90,7 @@ protected:
 	TMap<TWeakObjectPtr<UEnum>, TSharedPtr<DocTreeNode>> EnumDocTreeMap;
 	TArray<UDocGenOutputFormatFactoryBase*> OutputFormats;
 	FString OutputDir;
-	bool SaveAllFormats(FString const& OutDir, TSharedPtr<DocTreeNode> Document){};
+	bool SaveAllFormats(FString const& OutDir, TSharedPtr<DocTreeNode> Document){ return false; };
 public:
 	//
 	double GenerateNodeImageTime = 0.0;

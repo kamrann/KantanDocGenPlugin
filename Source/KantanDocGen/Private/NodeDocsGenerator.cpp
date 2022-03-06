@@ -4,8 +4,6 @@
 
 // Copyright (C) 2016-2017 Cameron Angus. All Rights Reserved.
 
-#pragma once
-
 #include "NodeDocsGenerator.h"
 #include "Async/Async.h"
 #include "BlueprintActionDatabase.h"
