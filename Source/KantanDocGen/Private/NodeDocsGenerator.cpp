@@ -22,6 +22,7 @@
 #include "KantanDocGenLog.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
+#include "Misc/EngineVersionComparison.h"
 #include "NodeFactory.h"
 #include "OutputFormats/DocGenOutputFormatFactoryBase.h"
 #include "Runtime/ImageWriteQueue/Public/ImageWriteTask.h"
@@ -169,7 +170,11 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 		Renderer.SetIsPrepassNeeded(true);
 		auto RenderTarget = Renderer.DrawWidget(NodeWidget.ToSharedRef(), DrawSize);
 		auto Desired = NodeWidget->GetDesiredSize();
+#if UE_VERSION_NEWER_THAN(5, 0, 0)
+		FlushRenderingCommands();
+#else 
 		FlushRenderingCommands(true);
+#endif
 		FTextureRenderTargetResource* RTResource = RenderTarget->GameThread_GetRenderTargetResource();
 		Rect = FIntRect(0, 0, (int32) Desired.X, (int32) Desired.Y);
 		FReadSurfaceDataFlags ReadPixelFlags(RCM_UNorm);
@@ -672,8 +677,10 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 				{
 					auto Value = ValueList->AppendChild("value");
 					Value->AppendChildWithValueEscaped("name", EnumInstance->GetNameStringByIndex(EnumIndex));
-					Value->AppendChildWithValueEscaped("displayname", EnumInstance->GetDisplayNameTextByIndex(EnumIndex).ToString());
-					Value->AppendChildWithValueEscaped("description", EnumInstance->GetToolTipTextByIndex(EnumIndex).ToString());
+					Value->AppendChildWithValueEscaped("displayname",
+													   EnumInstance->GetDisplayNameTextByIndex(EnumIndex).ToString());
+					Value->AppendChildWithValueEscaped("description",
+													   EnumInstance->GetToolTipTextByIndex(EnumIndex).ToString());
 				}
 			}
 			UpdateIndexDocWithEnum(IndexTree, EnumInstance);

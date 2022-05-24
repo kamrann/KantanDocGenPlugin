@@ -1,6 +1,7 @@
 #pragma once
 #include "Runtime/Launch/Resources/Version.h"
-#if ENGINE_MAJOR_VERSION >= 4 && ENGINE_MINOR_VERSION >= 25
+#include "Misc/EngineVersionComparison.h"
+#if UE_VERSION_NEWER_THAN (4, 25, 0)
 	#include "Misc/TVariant.h"
 namespace DocGen
 {
