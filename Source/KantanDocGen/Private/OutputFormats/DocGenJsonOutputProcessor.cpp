@@ -197,14 +197,13 @@ EIntermediateProcessingResult DocGenJsonOutputProcessor::ConvertJsonToAdoc(FStri
 			}
 			*/
 			BufferedText += FPlatformProcess::ReadPipe(PipeRead);
-
 			int32 EndOfLineIdx;
 			while (BufferedText.FindChar('\n', EndOfLineIdx))
 			{
 				FString Line = BufferedText.Left(EndOfLineIdx);
 				Line.RemoveFromEnd(TEXT("\r"));
 
-				UE_LOG(LogKantanDocGen, Log, TEXT("[KantanDocGen] %s"), *Line);
+				UE_LOG(LogKantanDocGen, Error, TEXT("[KantanDocGen] %s"), *Line);
 
 				BufferedText = BufferedText.Mid(EndOfLineIdx + 1);
 			}
@@ -233,6 +232,7 @@ EIntermediateProcessingResult DocGenJsonOutputProcessor::ConvertJsonToAdoc(FStri
 EIntermediateProcessingResult DocGenJsonOutputProcessor::ConvertAdocToHTML(FString IntermediateDir, FString OutputDir)
 {
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	PlatformFile.CreateDirectory(*(OutputDir / "img"));
 	PlatformFile.CopyDirectoryTree(*(OutputDir / "img"), *(BinaryPath.Path / "img"), true);
 
 	const FFilePath InAdocPath {IntermediateDir / "docs.adoc"};

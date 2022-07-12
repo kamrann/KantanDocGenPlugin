@@ -199,6 +199,10 @@ bool FNodeDocsGenerator::GenerateNodeImage(UEdGraphNode* Node, FNodeProcessingSt
 
 	State.RelImageBasePath = TEXT("../img");
 	FString ImageBasePath = State.ClassDocsPath / TEXT("img"); // State.RelImageBasePath;
+	if (!IFileManager::Get().DirectoryExists(*ImageBasePath))
+	{
+		IFileManager::Get().MakeDirectory(*ImageBasePath, true);
+	}
 	FString ImgFilename = FString::Printf(TEXT("nd_img_%s.png"), *NodeName);
 	FString ScreenshotSaveName = ImageBasePath / ImgFilename;
 
@@ -396,6 +400,9 @@ inline bool ShouldDocumentPin(UEdGraphPin* Pin)
 
 bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState& State)
 {
+	if (auto EventNode = Cast<UK2Node_Event>(Node)) {
+		return true; //Skip events
+	}
 	SCOPE_SECONDS_COUNTER(GenerateNodeDocsTime);
 
 	auto NodeDocsPath = State.ClassDocsPath / TEXT("nodes");
@@ -489,6 +496,15 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 				}
 			}
 		}
+		else
+		{
+			UE_LOG(LogKantanDocGen, Warning, TEXT("[KantanDocGen] Failed to get target function for node %s "), *NodeFullTitle);
+		}
+	}
+	else
+	{
+		UE_LOG(LogKantanDocGen, Warning, TEXT("[KantanDocGen] Cannot get type for node %s "),
+			   *NodeFullTitle);
 	}
 	auto InputNode = NodeDocFile->AppendChild("inputs");
 
