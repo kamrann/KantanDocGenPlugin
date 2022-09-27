@@ -590,7 +590,8 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 				FString ExtendedTypeString;
 				FString TypeString = PropertyIterator->GetCPPType(&ExtendedTypeString);
 				Member->AppendChildWithValueEscaped("type", TypeString + ExtendedTypeString);
-				auto MemberTags = Detail::ParseDoxygenTagsForString(PropertyIterator->GetMetaData(TEXT("Comment")));
+				const FString& Comment = PropertyIterator->GetMetaData(TEXT("Comment"));
+				auto MemberTags = Detail::ParseDoxygenTagsForString(Comment);
 				if (MemberTags.Num())
 				{
 					auto DoxygenElement = Member->AppendChild("doxygen");
@@ -602,14 +603,36 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 						}
 					}
 				}
+				else
+				{
+					// Avoid any property that is part of the superclass and then "redefined" in this Class
+					bool IsInSuper = PropertyIterator->IsInContainer(ClassInstance->GetSuperClass());
+					bool HasComment = Comment.Len() > 0;
+					// UE_LOG(LogKantanDocGen, Warning, TEXT("Name: %s, comment (%i): %s"), *Type->GetName(), Comment.Len(), *Comment);
+					if (IsInSuper == false && HasComment == false)
+					{
+						bool IsPublic = PropertyIterator->HasAnyPropertyFlags(CPF_NativeAccessSpecifierPublic);
+						FString LogStr = FString::Printf(TEXT("##teamcity[message status='WARNING' text='No doc for "
+															  "UClass-MemberTag (IsPublic %i): %s::%s']\n"),
+														 IsPublic, *Type->GetName(), *PropertyIterator->GetNameCPP());
+						FPlatformMisc::LocalPrint(*LogStr);
+						
+					}
+				}
 			}
 
-			// Only insert this into the map of classdocs if it wasnt already in there, and we actually need it to be
-			// included
-			if (!FoundClassDocTree && bClassShouldBeDocumented)
+			const FString& Comment = ClassInstance->GetMetaData(TEXT("Comment"));
+			bool HasComment = Comment.Len() > 0;
+			//UE_LOG(LogKantanDocGen, Warning, TEXT("UClass: %s, comment (%i): %s"), *Type->GetName(), Comment.Len(), *Comment);
+			
+			// Only insert this into the map of classdocs if it wasnt already in there, we actually need it to be
+			// included and does not have any comments 
+			if (!FoundClassDocTree && bClassShouldBeDocumented && HasComment == false)
 			{
 				ClassDocTreeMap.Add(ClassInstance, ClassDocTree);
 				UpdateIndexDocWithClass(IndexTree, ClassInstance);
+				FString LogStr = FString::Printf(TEXT("##teamcity[message status='WARNING' text='No doc for UClass: %s']\n"), *Type->GetName());
+				FPlatformMisc::LocalPrint(*LogStr);
 			}
 		}
 		else if (Type->GetClass() == UScriptStruct::StaticClass())
@@ -619,8 +642,9 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 			{
 				auto StructDocTree = InitStructDocTree(Struct);
 				auto MemberList = StructDocTree->FindChildByName("fields");
-
-				auto StructTags = Detail::ParseDoxygenTagsForString(Struct->GetMetaData(TEXT("Comment")));
+				const FString& Comment = Struct->GetMetaData(TEXT("Comment"));
+				bool HasComment = Comment.Len() > 0;
+				auto StructTags = Detail::ParseDoxygenTagsForString(Comment);
 				if (StructTags.Num())
 				{
 					auto DoxygenElement = StructDocTree->AppendChild("doxygen");
@@ -631,6 +655,13 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 							DoxygenElement->AppendChildWithValueEscaped(CurrentTag.Key, CurrentValue);
 						}
 					}
+				}
+				else if (HasComment == false)
+				{
+					FString LogStr = FString::Printf(
+						TEXT("##teamcity[message status='WARNING' text='Warning in UScriptStruct: %s']\n"),
+						*Type->GetName());
+					FPlatformMisc::LocalPrint(*LogStr);
 				}
 
 				for (TFieldIterator<FProperty> PropertyIterator(Struct);
@@ -643,7 +674,9 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 					FString TypeString = PropertyIterator->GetCPPType(&ExtendedTypeString);
 
 					Member->AppendChildWithValueEscaped("type", TypeString + ExtendedTypeString);
-					auto MemberTags = Detail::ParseDoxygenTagsForString(PropertyIterator->GetMetaData(TEXT("Comment")));
+					const FString& CommentIterator = PropertyIterator->GetMetaData(TEXT("Comment"));
+					bool HasCommentIterator = CommentIterator.Len() > 0;
+					auto MemberTags = Detail::ParseDoxygenTagsForString(CommentIterator);
 					if (MemberTags.Num())
 					{
 						auto DoxygenElement = Member->AppendChild("doxygen");
@@ -653,6 +686,20 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 							{
 								DoxygenElement->AppendChildWithValueEscaped(CurrentTag.Key, CurrentValue);
 							}
+						}
+					}
+					else if (HasCommentIterator == false)
+					{
+						// Avoid any property that is part of the parent struct and then "redefined" in this Struct
+						bool IsInSuper = PropertyIterator->IsInContainer(Struct->GetSuperStruct());
+						
+						if (IsInSuper == false)
+						{
+							FString LogStr = FString::Printf(
+								TEXT("##teamcity[message status='WARNING' text='Warning in UScriptStruct-property: "
+									 "%s::%s']\n"),
+								*Type->GetName(), *PropertyIterator->GetNameCPP());
+							FPlatformMisc::LocalPrint(*LogStr);
 						}
 					}
 				}
@@ -671,7 +718,9 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 			EnumInstance->ConditionalPostLoad();
 
 			auto EnumDocTree = InitEnumDocTree(EnumInstance);
-			auto EnumTags = Detail::ParseDoxygenTagsForString(EnumInstance->GetMetaData(TEXT("Comment")));
+			const FString& Comment = EnumInstance->GetMetaData(TEXT("Comment"));
+			bool HasComment = Comment.Len() > 0;
+			auto EnumTags = Detail::ParseDoxygenTagsForString(Comment);
 			if (EnumTags.Num())
 			{
 				auto DoxygenElement = EnumDocTree->AppendChild("doxygen");
@@ -682,6 +731,13 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 						DoxygenElement->AppendChildWithValueEscaped(CurrentTag.Key, CurrentValue);
 					}
 				}
+			}
+			else if (HasComment == false)
+			{
+				FString LogStr = FString::Printf(
+					TEXT("##teamcity[message status='WARNING' text='Warning in UEnum %s']\n"),
+									*Type->GetName());
+				FPlatformMisc::LocalPrint(*LogStr);
 			}
 
 			auto ValueList = EnumDocTree->FindChildByName("values");
