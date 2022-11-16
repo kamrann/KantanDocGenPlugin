@@ -12,7 +12,7 @@
 
 void FKantanDocGenCommands::RegisterCommands()
 {
-	UI_COMMAND(ShowDocGenUI, "Kantan DocGen", "Shows the Kantan Doc Gen tab", EUserInterfaceActionType::Button, FInputGesture());
+	UI_COMMAND(ShowDocGenUI, "Kantan DocGen", "Shows the Kantan Doc Gen tab", EUserInterfaceActionType::Button, FInputChord());
 	NameToCommandMap.Add(TEXT("ShowDocGenUI"), ShowDocGenUI);
 }
 
