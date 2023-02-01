@@ -400,8 +400,9 @@ inline bool ShouldDocumentPin(UEdGraphPin* Pin)
 
 bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState& State)
 {
-	if (auto EventNode = Cast<UK2Node_Event>(Node)) {
-		return true; //Skip events
+	if (auto EventNode = Cast<UK2Node_Event>(Node))
+	{
+		return true; // Skip events
 	}
 	SCOPE_SECONDS_COUNTER(GenerateNodeDocsTime);
 
@@ -498,13 +499,13 @@ bool FNodeDocsGenerator::GenerateNodeDocTree(UK2Node* Node, FNodeProcessingState
 		}
 		else
 		{
-			UE_LOG(LogKantanDocGen, Warning, TEXT("[KantanDocGen] Failed to get target function for node %s "), *NodeFullTitle);
+			UE_LOG(LogKantanDocGen, Warning, TEXT("[KantanDocGen] Failed to get target function for node %s "),
+				   *NodeFullTitle);
 		}
 	}
 	else
 	{
-		UE_LOG(LogKantanDocGen, Warning, TEXT("[KantanDocGen] Cannot get type for node %s "),
-			   *NodeFullTitle);
+		UE_LOG(LogKantanDocGen, Warning, TEXT("[KantanDocGen] Cannot get type for node %s "), *NodeFullTitle);
 	}
 	auto InputNode = NodeDocFile->AppendChild("inputs");
 
@@ -581,7 +582,8 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 			bool bClassShouldBeDocumented = false;
 			auto MemberList = ClassDocTree->FindChildByName("fields");
 			for (TFieldIterator<FProperty> PropertyIterator(ClassInstance);
-				 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible); ++PropertyIterator)
+				 PropertyIterator && ((PropertyIterator->PropertyFlags & CPF_BlueprintVisible) ||
+										  (PropertyIterator->HasAnyPropertyFlags(CPF_Deprecated))); ++PropertyIterator)
 			{
 				bClassShouldBeDocumented = true;
 				UE_LOG(LogKantanDocGen, Display, TEXT("member for class found : %s"), *PropertyIterator->GetNameCPP());
@@ -590,6 +592,12 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 				FString ExtendedTypeString;
 				FString TypeString = PropertyIterator->GetCPPType(&ExtendedTypeString);
 				Member->AppendChildWithValueEscaped("type", TypeString + ExtendedTypeString);
+				if (PropertyIterator->HasAnyPropertyFlags(CPF_Deprecated))
+				{
+					FText DetailedMessage =
+						FText::FromString(PropertyIterator->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
+					Member->AppendChildWithValueEscaped("deprecated", DetailedMessage.ToString());
+				}
 				const FString& Comment = PropertyIterator->GetMetaData(TEXT("Comment"));
 				auto MemberTags = Detail::ParseDoxygenTagsForString(Comment);
 				if (MemberTags.Num())
@@ -608,7 +616,8 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 					// Avoid any property that is part of the superclass and then "redefined" in this Class
 					bool IsInSuper = PropertyIterator->IsInContainer(ClassInstance->GetSuperClass());
 					bool HasComment = Comment.Len() > 0;
-					// UE_LOG(LogKantanDocGen, Warning, TEXT("Name: %s, comment (%i): %s"), *Type->GetName(), Comment.Len(), *Comment);
+					// UE_LOG(LogKantanDocGen, Warning, TEXT("Name: %s, comment (%i): %s"), *Type->GetName(),
+					// Comment.Len(), *Comment);
 					if (IsInSuper == false && HasComment == false)
 					{
 						bool IsPublic = PropertyIterator->HasAnyPropertyFlags(CPF_NativeAccessSpecifierPublic);
@@ -616,22 +625,23 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 															  "UClass-MemberTag (IsPublic %i): %s::%s']\n"),
 														 IsPublic, *Type->GetName(), *PropertyIterator->GetNameCPP());
 						FPlatformMisc::LocalPrint(*LogStr);
-						
 					}
 				}
 			}
 
 			const FString& Comment = ClassInstance->GetMetaData(TEXT("Comment"));
 			bool HasComment = Comment.Len() > 0;
-			//UE_LOG(LogKantanDocGen, Warning, TEXT("UClass: %s, comment (%i): %s"), *Type->GetName(), Comment.Len(), *Comment);
-			
+			// UE_LOG(LogKantanDocGen, Warning, TEXT("UClass: %s, comment (%i): %s"), *Type->GetName(), Comment.Len(),
+			// *Comment);
+
 			// Only insert this into the map of classdocs if it wasnt already in there, we actually need it to be
-			// included and does not have any comments 
+			// included and does not have any comments
 			if (!FoundClassDocTree && bClassShouldBeDocumented && HasComment == false)
 			{
 				ClassDocTreeMap.Add(ClassInstance, ClassDocTree);
 				UpdateIndexDocWithClass(IndexTree, ClassInstance);
-				FString LogStr = FString::Printf(TEXT("##teamcity[message status='WARNING' text='No doc for UClass: %s']\n"), *Type->GetName());
+				FString LogStr = FString::Printf(
+					TEXT("##teamcity[message status='WARNING' text='No doc for UClass: %s']\n"), *Type->GetName());
 				FPlatformMisc::LocalPrint(*LogStr);
 			}
 		}
@@ -665,7 +675,9 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 				}
 
 				for (TFieldIterator<FProperty> PropertyIterator(Struct);
-					 PropertyIterator && (PropertyIterator->PropertyFlags & CPF_BlueprintVisible); ++PropertyIterator)
+					 PropertyIterator && ((PropertyIterator->PropertyFlags & CPF_BlueprintVisible) ||
+										  (PropertyIterator->HasAnyPropertyFlags(CPF_Deprecated)));
+					 ++PropertyIterator)
 				{
 					// Move into its own function for use in parsing classes
 					auto Member = MemberList->AppendChild("field");
@@ -674,6 +686,12 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 					FString TypeString = PropertyIterator->GetCPPType(&ExtendedTypeString);
 
 					Member->AppendChildWithValueEscaped("type", TypeString + ExtendedTypeString);
+					if (PropertyIterator->HasAnyPropertyFlags(CPF_Deprecated))
+					{
+						FText DetailedMessage =
+							FText::FromString(PropertyIterator->GetMetaData(FBlueprintMetadata::MD_DeprecationMessage));
+						Member->AppendChildWithValueEscaped("deprecated", DetailedMessage.ToString());
+					}
 					const FString& CommentIterator = PropertyIterator->GetMetaData(TEXT("Comment"));
 					bool HasCommentIterator = CommentIterator.Len() > 0;
 					auto MemberTags = Detail::ParseDoxygenTagsForString(CommentIterator);
@@ -692,7 +710,7 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 					{
 						// Avoid any property that is part of the parent struct and then "redefined" in this Struct
 						bool IsInSuper = PropertyIterator->IsInContainer(Struct->GetSuperStruct());
-						
+
 						if (IsInSuper == false)
 						{
 							FString LogStr = FString::Printf(
@@ -735,8 +753,7 @@ bool FNodeDocsGenerator::GenerateTypeMembers(UObject* Type)
 			else if (HasComment == false)
 			{
 				FString LogStr = FString::Printf(
-					TEXT("##teamcity[message status='WARNING' text='Warning in UEnum %s']\n"),
-									*Type->GetName());
+					TEXT("##teamcity[message status='WARNING' text='Warning in UEnum %s']\n"), *Type->GetName());
 				FPlatformMisc::LocalPrint(*LogStr);
 			}
 
