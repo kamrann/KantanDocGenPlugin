@@ -1,7 +1,15 @@
 #include "OutputFormats/DocGenJsonOutputProcessor.h"
 #include "Algo/Transform.h"
 #include "HAL/FileManager.h"
+
+// To define the UE_5_0_OR_LATER below
+#include "Misc/EngineVersionComparison.h"
+#if UE_VERSION_NEWER_THAN(5, 0, 0)
+#include "HAL/PlatformFileManager.h"
+#else
 #include "HAL/PlatformFilemanager.h"
+#endif
+
 #include "Json.h"
 #include "JsonDomBuilder.h"
 #include "KantanDocGenLog.h"
